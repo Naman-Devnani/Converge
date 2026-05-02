@@ -25,6 +25,7 @@ export interface ChatMessage {
 export interface Session {
   id: string;
   name: string;
+  hostSocketId: string;
   createdAt: number;
   expiresAt: number;
   participants: Record<string, Participant>;

@@ -42,6 +42,7 @@ export function getOrCreateSession(id: string, config?: SessionConfig): Session 
   const session: Session = {
     id,
     name: (config?.name ?? '').slice(0, 60),
+    hostSocketId: '',
     createdAt: Date.now(),
     expiresAt: Date.now() + ttl,
     participants: {},
@@ -93,6 +94,19 @@ export function updateLocation(
   p.lastUpdate = Date.now();
   p.lastSeen = Date.now();
   return p;
+}
+
+export function setHost(sessionId: string, socketId: string): void {
+  const session = sessions.get(sessionId);
+  if (session && !session.hostSocketId) session.hostSocketId = socketId;
+}
+
+export function isHost(sessionId: string, socketId: string): boolean {
+  return sessions.get(sessionId)?.hostSocketId === socketId;
+}
+
+export function endSession(sessionId: string): void {
+  sessions.delete(sessionId);
 }
 
 export function removeParticipant(sessionId: string, socketId: string): void {

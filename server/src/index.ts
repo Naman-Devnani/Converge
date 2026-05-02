@@ -10,6 +10,9 @@ import {
   updateLocation,
   removeParticipant,
   setParticipantOnline,
+  setHost,
+  isHost,
+  endSession,
   addMessage,
   validatePassword,
   type SessionConfig,
@@ -85,13 +88,19 @@ io.on('connection', (socket) => {
     socket.join(sessionId);
     socketSession.set(socket.id, sessionId);
 
+    // First joiner with config is the host
+    if (config) setHost(sessionId, socket.id);
+
+    const isSessionHost = isHost(sessionId, socket.id);
+
     socket.emit('session-joined', {
       sessionId,
-      myId:        socket.id,
+      myId:         socket.id,
       participants: Object.values(session.participants),
-      expiresAt:   session.expiresAt,
-      sessionName: session.name,
-      messages:    session.messages,
+      expiresAt:    session.expiresAt,
+      sessionName:  session.name,
+      messages:     session.messages,
+      isHost:       isSessionHost,
     });
 
     socket.to(sessionId).emit('participant-joined', { participant });
@@ -165,6 +174,16 @@ io.on('connection', (socket) => {
       offlineTimers.set(socket.id, timer);
     }
   }
+
+  socket.on('end-session', () => {
+    const sessionId = socketSession.get(socket.id);
+    if (!sessionId) return;
+    if (!isHost(sessionId, socket.id)) {
+      socket.emit('error', { message: 'Only the host can end the session' }); return;
+    }
+    io.to(sessionId).emit('session-ended');
+    endSession(sessionId);
+  });
 
   socket.on('leave-session', () => handleLeave(true));
   socket.on('disconnect',    () => handleLeave(false));

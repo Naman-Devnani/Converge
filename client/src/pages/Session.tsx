@@ -42,6 +42,9 @@ export default function Session() {
   const [expiresAt,          setExpiresAt]          = useState<number | null>(null);
   const [sessionName,        setSessionName]        = useState('');
   const [timeLeft,           setTimeLeft]           = useState('');
+  const [amHost,             setAmHost]             = useState(false);
+  const [confirmEnd,         setConfirmEnd]         = useState(false);
+  const [sessionEnded,       setSessionEnded]       = useState(false);
 
   const watchIdRef   = useRef<number | null>(null);
   const approxRef    = useRef(false);
@@ -118,6 +121,7 @@ export default function Session() {
       expiresAt: number;
       sessionName: string;
       messages: ChatMessage[];
+      isHost: boolean;
     }) => {
       const map: Record<string, Participant> = {};
       data.participants.forEach(p => { map[p.id] = p; });
@@ -131,6 +135,7 @@ export default function Session() {
       setExpiresAt(data.expiresAt);
       setSessionName(data.sessionName);
       setChatMessages(data.messages || []);
+      setAmHost(data.isHost);
       addToHistory({ sessionId: data.sessionId, sessionName: data.sessionName, joinedAt: Date.now() });
     });
 
@@ -184,6 +189,11 @@ export default function Session() {
       }
     });
 
+    socket.on('session-ended', () => {
+      setSessionEnded(true);
+      setTimeout(() => navigate('/'), 3000);
+    });
+
     return () => {
       socket.off('connect');
       socket.off('disconnect');
@@ -194,6 +204,7 @@ export default function Session() {
       socket.off('participant-status');
       socket.off('chat-message');
       socket.off('error');
+      socket.off('session-ended');
       if (socket.connected) {
         socket.emit('leave-session');
         socket.disconnect();
@@ -390,6 +401,33 @@ export default function Session() {
               Invite
             </button>
           )}
+
+          {/* End session (host only) */}
+          {session && amHost && (
+            confirmEnd ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { socket.emit('end-session'); setConfirmEnd(false); }}
+                  className="text-xs font-bold px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+                >
+                  End
+                </button>
+                <button
+                  onClick={() => setConfirmEnd(false)}
+                  className="text-xs font-bold px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmEnd(true)}
+                className="text-xs font-bold px-3 py-2 bg-red-900/70 hover:bg-red-700 text-red-300 hover:text-white rounded-xl transition-colors border border-red-800/50"
+              >
+                End
+              </button>
+            )
+          )}
         </div>
       </header>
 
@@ -465,6 +503,17 @@ export default function Session() {
           myId={session.myId}
           onClose={() => setShowChat(false)}
         />
+      )}
+
+      {/* Session ended overlay */}
+      {sessionEnded && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+            <div className="text-4xl mb-4">🏁</div>
+            <h2 className="text-white text-xl font-bold mb-2">Session Ended</h2>
+            <p className="text-slate-400 text-sm">The host has ended this session. Redirecting you home…</p>
+          </div>
+        </div>
       )}
     </div>
   );

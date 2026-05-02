@@ -169,8 +169,8 @@ export default function Session() {
       });
     });
 
-    socket.on('chat-message', (msg: ChatMessage) => {
-      setChatMessages(prev => [...prev, msg]);
+    socket.on('chat-message', ({ message }: { message: ChatMessage }) => {
+      setChatMessages(prev => [...prev, message]);
       if (!showChatRef.current) setUnreadCount(c => c + 1);
     });
 

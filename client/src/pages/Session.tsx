@@ -282,7 +282,7 @@ export default function Session() {
           sessionId,
           name,
           config: {
-            sessionName: hostState.sessionName || '',
+            name: hostState.sessionName || '',
             password:    hostState.password    || '',
             expiryHours: hostState.expiryHours ?? 2,
             maxParticipants: hostState.maxParticipants ?? 20,

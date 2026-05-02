@@ -45,6 +45,7 @@ export default function Session() {
   const [amHost,             setAmHost]             = useState(false);
   const [confirmEnd,         setConfirmEnd]         = useState(false);
   const [sessionEnded,       setSessionEnded]       = useState(false);
+  const [sessionExpired,     setSessionExpired]     = useState(false);
 
   const watchIdRef   = useRef<number | null>(null);
   const approxRef    = useRef(false);
@@ -96,7 +97,11 @@ export default function Session() {
     if (!expiresAt) return;
     const tick = () => {
       const left = expiresAt - Date.now();
-      if (left <= 0) { setTimeLeft('Expired'); return; }
+      if (left <= 0) {
+        setTimeLeft('Expired');
+        setSessionExpired(true);
+        return;
+      }
       const h = Math.floor(left / 3600000);
       const m = Math.floor((left % 3600000) / 60000);
       const s = Math.floor((left % 60000) / 1000);
@@ -182,6 +187,7 @@ export default function Session() {
     socket.on('error', ({ message, code }: { message: string; code?: string }) => {
       if (code === 'WRONG_PASSWORD' || message === 'Incorrect password') {
         setPasswordError('Wrong password. Try again.');
+        setPendingPassword('');
         setShowConsent(false);
         setShowPasswordModal(true);
       } else {
@@ -215,15 +221,20 @@ export default function Session() {
 
   const arrivalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // Clear arrival timers only on unmount
+  useEffect(() => {
+    return () => { arrivalTimersRef.current.forEach(clearTimeout); };
+  }, []);
+
   // "Arrived" detection + haptic
   useEffect(() => {
     if (!session) return;
     const me = session.participants[session.myId];
-    if (!me?.lat) return;
+    if (!me?.lat || !me?.lng) return;
 
     for (const p of Object.values(session.participants)) {
-      if (p.id === session.myId || !p.lat) continue;
-      const dist = haversineKm(me.lat, me.lng!, p.lat, p.lng!);
+      if (p.id === session.myId || !p.lat || !p.lng) continue;
+      const dist = haversineKm(me.lat, me.lng, p.lat, p.lng);
 
       if (dist < ARRIVED_THRESHOLD_KM && !notifiedRef.current.has(p.id)) {
         notifiedRef.current.add(p.id);
@@ -237,11 +248,6 @@ export default function Session() {
         arrivalTimersRef.current.push(t);
       }
     }
-
-    return () => {
-      arrivalTimersRef.current.forEach(clearTimeout);
-      arrivalTimersRef.current = [];
-    };
   }, [session]);
 
   const startLocationWatch = useCallback(() => {
@@ -526,6 +532,23 @@ export default function Session() {
             <div className="text-4xl mb-4">🏁</div>
             <h2 className="text-white text-xl font-bold mb-2">Session Ended</h2>
             <p className="text-slate-400 text-sm">The host has ended this session. Redirecting you home…</p>
+          </div>
+        </div>
+      )}
+
+      {/* Session expired overlay */}
+      {sessionExpired && !sessionEnded && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+            <div className="text-4xl mb-4">⏱</div>
+            <h2 className="text-white text-xl font-bold mb-2">Session Expired</h2>
+            <p className="text-slate-400 text-sm mb-6">This session has reached its time limit.</p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+            >
+              Back to Home
+            </button>
           </div>
         </div>
       )}

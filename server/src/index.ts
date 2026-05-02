@@ -31,8 +31,10 @@ const io = new Server(httpServer, {
 
 const socketSession    = new Map<string, string>();
 const locationThrottle = new Map<string, number>();
+const chatThrottle     = new Map<string, number>();
 const offlineTimers    = new Map<string, ReturnType<typeof setTimeout>>();
 const LOCATION_MIN_MS  = 2000;
+const CHAT_MIN_MS      = 1000;
 const OFFLINE_GRACE_MS = 30_000;
 
 // ── REST ──────────────────────────────────────────────────────────────────────
@@ -113,6 +115,10 @@ io.on('connection', (socket) => {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
 
+    if (typeof lat !== 'number' || typeof lng !== 'number'
+        || lat < -90 || lat > 90 || lng < -180 || lng > 180
+        || !isFinite(lat) || !isFinite(lng)) return;
+
     const last = locationThrottle.get(socket.id) ?? 0;
     if (Date.now() - last < LOCATION_MIN_MS) return;
     locationThrottle.set(socket.id, Date.now());
@@ -128,6 +134,11 @@ io.on('connection', (socket) => {
   socket.on('chat-message', ({ text }: { text: string }) => {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
+
+    const lastChat = chatThrottle.get(socket.id) ?? 0;
+    if (Date.now() - lastChat < CHAT_MIN_MS) return;
+    chatThrottle.set(socket.id, Date.now());
+
     const session = getSession(sessionId);
     if (!session) return;
     const participant = session.participants[socket.id];
@@ -152,6 +163,7 @@ io.on('connection', (socket) => {
 
     socketSession.delete(socket.id);
     locationThrottle.delete(socket.id);
+    chatThrottle.delete(socket.id);
     socket.leave(sessionId);
 
     // Cancel any pending offline timer for this socket

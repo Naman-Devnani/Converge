@@ -16,29 +16,47 @@ export function formatDistance(km: number): string {
   return `${km.toFixed(1)} km away`;
 }
 
+// L-3: Accept an optional live speed (km/h) so callers can pass
+// participant.speed * 3.6 when available instead of always assuming walking pace.
 export function formatETA(km: number, speedKmh = 5): string {
   if (km < 0.03) return 'Here!';
-  const mins = (km / speedKmh) * 60;
+  const mins = (km / Math.max(speedKmh, 0.5)) * 60;
   if (mins < 1)  return '< 1 min';
   if (mins < 60) return `~${Math.round(mins)} min`;
   return `~${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
 }
 
-// Snap coordinates to a ~500 m grid for privacy blur mode.
-// Consistent: same real location always produces the same snapped point.
-export function toApproximate(lat: number, lng: number): { lat: number; lng: number } {
-  const precision = 0.005; // ≈ 500 m
-  return {
-    lat: Math.round(lat / precision) * precision,
-    lng: Math.round(lng / precision) * precision,
-  };
+// M-6: Build a session-scoped approximator that adds a STABLE RANDOM jitter to the
+// grid snap.  The jitter is derived from a unique per-session seed so the same
+// real position produces DIFFERENT grid cells across sessions — defeating
+// re-identification by accumulating observations.
+//
+// Usage: call makeApproximator(crypto.randomUUID()) once on consent, then reuse
+// the returned function for all location updates in that session.
+export function makeApproximator(
+  seed: string,
+): (lat: number, lng: number) => { lat: number; lng: number } {
+  // FNV-1a hash → two stable floats ∈ [0, 1)
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const jitterLat = ((h & 0xffff) / 0x10000 - 0.5) * 0.005;         // ±~250 m
+  const jitterLng = (((h >>> 16) & 0xffff) / 0x10000 - 0.5) * 0.005;
+  const precision = 0.005;                                            // ≈ 500 m grid
+  return (lat, lng) => ({
+    lat: Math.round((lat + jitterLat) / precision) * precision,
+    lng: Math.round((lng + jitterLng) / precision) * precision,
+  });
 }
 
 const ADJECTIVES = ['Swift', 'Bright', 'Cool', 'Quick', 'Bold', 'Calm', 'Keen', 'Wise', 'Jolly', 'Merry'];
 const NOUNS      = ['Fox', 'Owl', 'Bear', 'Deer', 'Wolf', 'Hawk', 'Lynx', 'Puma', 'Otter', 'Robin'];
 
+// Also switch randomName to CSPRNG while we're here
 export function randomName(): string {
-  const adj  = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return `${adj} ${noun}`;
+  const buf = new Uint8Array(2);
+  crypto.getRandomValues(buf);
+  return `${ADJECTIVES[buf[0] % ADJECTIVES.length]} ${NOUNS[buf[1] % NOUNS.length]}`;
 }

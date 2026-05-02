@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'crypto';
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'crypto';
 import type { Session, Participant, ChatMessage, VenuePoint } from './types';
 
 const COLORS = [
@@ -7,9 +7,15 @@ const COLORS = [
 ];
 
 const HOUR_MS     = 60 * 60 * 1000;
-const DEFAULT_TTL = 2 * HOUR_MS;       // fallback when no expiryHours provided
+const DEFAULT_TTL = 2 * HOUR_MS;
 const EMPTY_TTL   = 10 * 60 * 1000;
 const MAX_MESSAGES = 100;
+
+// C-2: scrypt params — N=16384 gives ~30 ms per hash (acceptable for low-concurrency join flow)
+const SCRYPT_N      = 16384;
+const SCRYPT_R      = 8;
+const SCRYPT_P      = 1;
+const SCRYPT_KEYLEN = 32;
 
 const sessions = new Map<string, Session>();
 
@@ -22,8 +28,28 @@ setInterval(() => {
   }
 }, 60_000);
 
+// C-2: Hash password with per-session random salt using scrypt.
+// Returns "salt:hash" so both are stored together in passwordHash.
 export function hashPassword(password: string): string {
-  return createHash('sha256').update(`meetsync:${password}`).digest('hex');
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
+  return `${salt}:${hash.toString('hex')}`;
+}
+
+// C-2: Constant-time verification — splits stored "salt:hash", re-derives and compares.
+export function verifyPassword(password: string, stored: string): boolean {
+  const colonIdx = stored.indexOf(':');
+  if (colonIdx === -1) return false;
+  const salt      = stored.slice(0, colonIdx);
+  const storedHex = stored.slice(colonIdx + 1);
+  try {
+    const derived  = scryptSync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
+    const storedBuf = Buffer.from(storedHex, 'hex');
+    if (derived.length !== storedBuf.length) return false;
+    return timingSafeEqual(derived, storedBuf);
+  } catch {
+    return false;
+  }
 }
 
 export interface SessionConfig {
@@ -36,6 +62,10 @@ export interface SessionConfig {
 
 export function getSession(id: string): Session | undefined {
   return sessions.get(id);
+}
+
+export function sessionExists(id: string): boolean {
+  return sessions.has(id);
 }
 
 export function getOrCreateSession(id: string, config?: SessionConfig): Session {
@@ -133,7 +163,7 @@ export function validatePassword(sessionId: string, password: string): boolean {
   const session = sessions.get(sessionId);
   if (!session) return false;
   if (!session.passwordHash) return true;
-  return session.passwordHash === hashPassword(password);
+  return verifyPassword(password, session.passwordHash);
 }
 
 export function addMessage(

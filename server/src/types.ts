@@ -37,7 +37,7 @@ export interface Session {
   expiresAt: number;
   participants: Record<string, Participant>;
   emptyAt: number | null;
-  passwordHash: string | null;
+  passwordHash: string | null;   // C-2: stored as "salt:scryptHash"
   maxParticipants: number;
   messages: ChatMessage[];
   venuePoints: VenuePoint[];

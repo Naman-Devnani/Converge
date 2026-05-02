@@ -3,23 +3,24 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Participant, VenuePoint } from '../types';
 import { VENUE_COLORS } from './VenuePicker';
+import '../utils/leaflet-setup'; // N-2: shared icon fix
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+// H-1: Validate that a color string is a safe 6-digit hex before injecting into HTML.
+// Falls back to a neutral grey so a bad value never breaks rendering.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+function safeHexColor(color: string, fallback = '#888888'): string {
+  return HEX_COLOR_RE.test(color) ? color : fallback;
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function makeIcon(color: string, name: string, isMe: boolean) {
-  const size = isMe ? 22 : 18;
-  const half = size / 2;
+  const size      = isMe ? 22 : 18;
+  const half      = size / 2;
   const safeName  = escapeHtml(name);
-  const safeColor = escapeHtml(color);
+  const safeColor = safeHexColor(color); // H-1
   return L.divIcon({
     html: `
       <div style="position:relative;width:${size}px;height:${size}px;">
@@ -62,7 +63,7 @@ function makeMidpointIcon() {
 
 function makeVenueIcon(label: string, color: string) {
   const safeLabel = escapeHtml(label.slice(0, 24));
-  const safeColor = escapeHtml(color);
+  const safeColor = safeHexColor(color); // H-1
   return L.divIcon({
     html: `
       <div style="position:relative;width:34px;height:34px;">
@@ -89,16 +90,19 @@ interface MarkersProps {
 
 function Markers({ participants, myId, venuePoints }: MarkersProps) {
   const map = useMap();
-  const markersRef      = useRef<Record<string, L.Marker>>({});
-  const circlesRef      = useRef<Record<string, L.Circle>>({});
+  // M-2: Object.create(null) prevents prototype-pollution via special key names
+  const markersRef      = useRef<Record<string, L.Marker>>(Object.create(null));
+  const circlesRef      = useRef<Record<string, L.Circle>>(Object.create(null));
   const midpointRef     = useRef<L.Marker | null>(null);
-  const venueMarkersRef = useRef<Record<string, L.Marker>>({});
+  const venueMarkersRef = useRef<Record<string, L.Marker>>(Object.create(null));
   const userMovedRef    = useRef(false);
 
   // Stop auto-fitting once the user manually pans or zooms.
-  // Check originalEvent so programmatic fitBounds/setView don't count.
+  // N-3: use typed LeafletEvent instead of any.
   useEffect(() => {
-    const onInteract = (e: any) => { if (e.originalEvent) userMovedRef.current = true; };
+    const onInteract = (e: L.LeafletEvent & { originalEvent?: Event }) => {
+      if (e.originalEvent) userMovedRef.current = true;
+    };
     map.on('dragstart', onInteract);
     map.on('zoomstart', onInteract);
     return () => {
@@ -154,6 +158,7 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
     const located = participants.filter(p => p.lat !== null && p.lng !== null);
 
     for (const p of participants) {
+      // L-9: strict null check (avoids suppressing lat/lng === 0 on equator)
       if (p.lat === null || p.lng === null) continue;
 
       const pos: L.LatLngExpression = [p.lat, p.lng];
@@ -182,7 +187,6 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
           circlesRef.current[p.id].setLatLng(pos).setRadius(p.accuracy);
         }
       } else {
-        // GPS improved below threshold — remove stale circle
         circlesRef.current[p.id]?.remove();
         delete circlesRef.current[p.id];
       }

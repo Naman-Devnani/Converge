@@ -2,14 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { VenuePoint } from '../types';
-
-// Ensure Leaflet default icons resolve correctly (same fix as MeetMap)
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+import '../utils/leaflet-setup'; // N-2: shared icon fix — no duplicate code
 
 export const VENUE_COLORS = ['#8b5cf6', '#3b82f6', '#ec4899', '#f59e0b', '#06b6d4'];
 export const MAX_VENUES   = 5;
@@ -79,6 +72,14 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
   const [results,   setResults]   = useState<PhotonFeature[]>([]);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // L-6: Clear the pending debounce timer on unmount to avoid setState on
+  // an unmounted component (React 18 StrictMode strict-effects mode surfaced this).
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
 
   // ── Address search via Photon (Komoot) — free, no API key, global ────────────
   const handleQueryChange = useCallback((q: string) => {

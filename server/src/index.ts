@@ -6,6 +6,7 @@ import path from 'path';
 import {
   getSession,
   getOrCreateSession,
+  sessionExists,
   addParticipant,
   updateLocation,
   removeParticipant,
@@ -39,6 +40,27 @@ const LOCATION_MIN_MS  = 2000;
 const CHAT_MIN_MS      = 1000;
 const OFFLINE_GRACE_MS = 30_000;
 
+// H-2: Per-IP rate limiting for join-session (max 10 per minute)
+const joinThrottle    = new Map<string, { count: number; resetAt: number }>();
+const JOIN_MAX        = 10;
+const JOIN_WINDOW_MS  = 60_000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of joinThrottle.entries()) {
+    if (now >= entry.resetAt) joinThrottle.delete(ip);
+  }
+}, JOIN_WINDOW_MS);
+
+// M-1: Allowlist for session ID format (alphanumeric + hyphen/underscore, 6–64 chars)
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
+
+// H-1: Validate color is a safe 6-digit hex before broadcasting
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+function safeColor(c: string): string {
+  return HEX_COLOR_RE.test(c) ? c : '#888888';
+}
+
 // ── REST ──────────────────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
@@ -69,26 +91,45 @@ io.on('connection', (socket) => {
     password?: string;
     config?: SessionConfig;
   }) => {
-    if (!sessionId || typeof sessionId !== 'string') {
+    // M-1: Validate session ID format
+    if (!sessionId || typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) {
       socket.emit('error', { message: 'Invalid session ID' }); return;
     }
     if (typeof name !== 'string') {
       socket.emit('error', { message: 'Invalid name' }); return;
     }
 
-    const session = getOrCreateSession(sessionId, config);
+    // H-2: Rate-limit join attempts per IP
+    const clientIp = socket.handshake.address;
+    const now      = Date.now();
+    const rl       = joinThrottle.get(clientIp);
+    if (rl && now < rl.resetAt) {
+      if (rl.count >= JOIN_MAX) {
+        socket.emit('error', { message: 'Too many join attempts, please wait', code: 'RATE_LIMITED' }); return;
+      }
+      rl.count++;
+    } else {
+      joinThrottle.set(clientIp, { count: 1, resetAt: now + JOIN_WINDOW_MS });
+    }
+
+    // C-1: Track whether this session existed BEFORE this call.
+    // Only the first caller (new session + config) becomes host.
+    // Existing sessions always require password validation, even with config.
+    const isNewSession = !sessionExists(sessionId);
+    const session = getOrCreateSession(sessionId, isNewSession ? config : undefined);
 
     if (Date.now() > session.expiresAt) {
       socket.emit('error', { message: 'Session has expired', code: 'SESSION_EXPIRED' }); return;
     }
 
-    // Password validation (guests only — host passes config)
-    if (session.passwordHash && !config) {
+    // C-1 + password: for existing sessions, always validate password regardless of config presence
+    if (!isNewSession && session.passwordHash) {
       if (!validatePassword(sessionId, password ?? '')) {
         socket.emit('error', { message: 'Incorrect password', code: 'WRONG_PASSWORD' }); return;
       }
     }
 
+    // M-7: Single authoritative capacity check (addParticipant also checks, but we want a typed error here)
     if (Object.keys(session.participants).length >= session.maxParticipants) {
       socket.emit('error', { message: 'Session is full', code: 'SESSION_FULL' }); return;
     }
@@ -99,15 +140,20 @@ io.on('connection', (socket) => {
     socket.join(sessionId);
     socketSession.set(socket.id, sessionId);
 
-    // First joiner with config is the host
-    if (config) setHost(sessionId, socket.id);
+    // C-1: Only the creator of a NEW session can become host
+    if (config && isNewSession) setHost(sessionId, socket.id);
 
     const isSessionHost = isHost(sessionId, socket.id);
+
+    // H-1: Sanitise color before sending to clients
+    const sanitisedParticipants = Object.values(session.participants).map(p => ({
+      ...p, color: safeColor(p.color),
+    }));
 
     socket.emit('session-joined', {
       sessionId,
       myId:         socket.id,
-      participants: Object.values(session.participants),
+      participants: sanitisedParticipants,
       expiresAt:    session.expiresAt,
       sessionName:  session.name,
       messages:     session.messages,
@@ -116,7 +162,9 @@ io.on('connection', (socket) => {
       venuePoints:  session.venuePoints,
     });
 
-    socket.to(sessionId).emit('participant-joined', { participant });
+    socket.to(sessionId).emit('participant-joined', {
+      participant: { ...participant, color: safeColor(participant.color) },
+    });
   });
 
   socket.on('location-update', ({ lat, lng, accuracy, heading, speed }: {
@@ -139,7 +187,9 @@ io.on('connection', (socket) => {
       accuracy ?? null, heading ?? null, speed ?? null,
     );
     if (!participant) return;
-    io.to(sessionId).emit('participant-moved', { participant });
+    io.to(sessionId).emit('participant-moved', {
+      participant: { ...participant, color: safeColor(participant.color) },
+    });
   });
 
   socket.on('chat-message', ({ text }: { text: string }) => {
@@ -161,7 +211,7 @@ io.on('connection', (socket) => {
     const message = addMessage(sessionId, {
       participantId:   socket.id,
       participantName: participant.name,
-      color:           participant.color,
+      color:           safeColor(participant.color),
       text:            trimmed,
     });
     if (!message) return;
@@ -177,7 +227,6 @@ io.on('connection', (socket) => {
     chatThrottle.delete(socket.id);
     socket.leave(sessionId);
 
-    // Cancel any pending offline timer for this socket
     const existing = offlineTimers.get(socket.id);
     if (existing) { clearTimeout(existing); offlineTimers.delete(socket.id); }
 
@@ -185,7 +234,6 @@ io.on('connection', (socket) => {
       removeParticipant(sessionId, socket.id);
       io.to(sessionId).emit('participant-left', { participantId: socket.id });
     } else {
-      // Mark offline, broadcast status, then remove after grace period
       setParticipantOnline(sessionId, socket.id, false);
       io.to(sessionId).emit('participant-status', { participantId: socket.id, online: false });
 
@@ -206,10 +254,10 @@ io.on('connection', (socket) => {
     }
     if (!Array.isArray(points)) return;
 
-    // Validate each point
+    // M-2: Validate each venue point — strict format check on id to prevent prototype pollution
     const validated: VenuePoint[] = points
       .filter(p =>
-        p && typeof p.id === 'string' &&
+        p && typeof p.id === 'string' && /^[\w-]{1,64}$/.test(p.id) &&
         typeof p.label === 'string' &&
         typeof p.lat === 'number' && typeof p.lng === 'number' &&
         p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180 &&
@@ -227,12 +275,32 @@ io.on('connection', (socket) => {
     io.to(sessionId).emit('venue-points-updated', { venuePoints: saved });
   });
 
+  // H-5: Let the client verify the session still exists after a reconnect
+  socket.on('check-session', ({ sessionId }: { sessionId?: string }) => {
+    if (!sessionId || typeof sessionId !== 'string') {
+      socket.emit('session-status', { exists: false }); return;
+    }
+    const session = getSession(sessionId);
+    socket.emit('session-status', {
+      exists: !!session && Date.now() <= session.expiresAt,
+    });
+  });
+
   socket.on('end-session', () => {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
     if (!isHost(sessionId, socket.id)) {
       socket.emit('error', { message: 'Only the host can end the session' }); return;
     }
+
+    // L-7: Cancel all grace-period timers for participants in this session
+    for (const [sid, sessId] of socketSession.entries()) {
+      if (sessId === sessionId) {
+        const timer = offlineTimers.get(sid);
+        if (timer) { clearTimeout(timer); offlineTimers.delete(sid); }
+      }
+    }
+
     io.to(sessionId).emit('session-ended');
     endSession(sessionId);
   });

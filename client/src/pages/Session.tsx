@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { socket } from '../socket';
 import type { Participant, SessionState, ChatMessage, VenuePoint } from '../types';
-import { haversineKm, toApproximate } from '../utils/geo';
+import { haversineKm, makeApproximator } from '../utils/geo';
 import { addToHistory } from '../utils/history';
 import MeetMap from '../components/MeetMap';
 import ConsentModal from '../components/ConsentModal';
@@ -37,7 +37,9 @@ export default function Session() {
   const [pendingPassword,    setPendingPassword]    = useState('');
   const [geoError,           setGeoError]           = useState<string | null>(null);
   const [isNewSession,       setIsNewSession]       = useState(false);
-  const [arrivals,           setArrivals]           = useState<string[]>([]);
+  // L-2: store {id, msg} so duplicate messages get unique React keys.
+  const [arrivals,           setArrivals]           = useState<{ id: string; msg: string }[]>([]);
+  const [reconnectFailed,    setReconnectFailed]    = useState(false); // M-10
   const [chatMessages,       setChatMessages]       = useState<ChatMessage[]>([]);
   const [unreadCount,        setUnreadCount]        = useState(0);
   const [isConnected,        setIsConnected]        = useState(socket.connected);
@@ -51,11 +53,18 @@ export default function Session() {
   const [showVenueEditor,    setShowVenueEditor]    = useState(false);
   const [draftVenuePoints,   setDraftVenuePoints]   = useState<VenuePoint[]>([]);
 
-  const watchIdRef        = useRef<number | null>(null);
-  const approxRef         = useRef(false);
-  const notifiedRef       = useRef<Set<string>>(new Set());
-  const showChatRef       = useRef(false);
+  const watchIdRef         = useRef<number | null>(null);
+  const approxRef          = useRef(false);
+  // M-6: stable per-session approximator function (null = exact mode)
+  const approxFnRef        = useRef<((lat: number, lng: number) => { lat: number; lng: number }) | null>(null);
+  const notifiedRef        = useRef<Set<string>>(new Set());
+  const showChatRef        = useRef(false);
   const sessionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // H-5: store join params so we can re-emit join-session on socket reconnect
+  const joinParamsRef      = useRef<Parameters<typeof socket.emit>[1] | null>(null);
+  const hasJoinedRef       = useRef(false);
+  // M-5: guard against double-disconnect in cleanup vs Leave button
+  const disconnectedRef    = useRef(false);
 
   useEffect(() => { showChatRef.current = showChat; }, [showChat]);
 
@@ -121,10 +130,24 @@ export default function Session() {
   useEffect(() => {
     if (!sessionId) return;
 
-    socket.on('connect',    () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
+    // H-3: capture named handler references so socket.off removes exactly
+    // these listeners and not every listener on the same event.
 
-    socket.on('session-joined', (data: {
+    const onConnect = () => {
+      setIsConnected(true);
+      // H-5: re-join the session on reconnect (socket ID changes each time).
+      // joinParamsRef is populated by handleConsent before the first connect.
+      if (hasJoinedRef.current && joinParamsRef.current) {
+        socket.emit('join-session', joinParamsRef.current);
+      }
+    };
+
+    const onDisconnect = () => setIsConnected(false);
+
+    // M-10: surface a non-recoverable connection failure in the UI.
+    const onReconnectFailed = () => setReconnectFailed(true);
+
+    const onSessionJoined = (data: {
       sessionId: string;
       myId: string;
       participants: Participant[];
@@ -138,38 +161,41 @@ export default function Session() {
       const map: Record<string, Participant> = {};
       data.participants.forEach(p => { map[p.id] = p; });
       setSession({
-        sessionId:   data.sessionId,
-        myId:        data.myId,
+        sessionId:    data.sessionId,
+        myId:         data.myId,
         participants: map,
-        expiresAt:   data.expiresAt,
-        sessionName: data.sessionName,
-        hostId:      data.hostId,
-        venuePoints: data.venuePoints ?? [],
+        expiresAt:    data.expiresAt,
+        sessionName:  data.sessionName,
+        hostId:       data.hostId,
+        venuePoints:  data.venuePoints ?? [],
       });
       setExpiresAt(data.expiresAt);
       setSessionName(data.sessionName);
       setChatMessages(data.messages || []);
       setAmHost(data.isHost);
+      // H-4: clear the pending password from memory once the server confirms we joined.
+      setPendingPassword('');
+      hasJoinedRef.current = true;
       addToHistory({ sessionId: data.sessionId, sessionName: data.sessionName, joinedAt: Date.now() });
-    });
+    };
 
-    socket.on('venue-points-updated', ({ venuePoints }: { venuePoints: VenuePoint[] }) => {
+    const onVenuePointsUpdated = ({ venuePoints }: { venuePoints: VenuePoint[] }) => {
       setSession(prev => prev ? { ...prev, venuePoints } : prev);
-    });
+    };
 
-    socket.on('participant-joined', ({ participant }: { participant: Participant }) => {
+    const onParticipantJoined = ({ participant }: { participant: Participant }) => {
       setSession(prev => prev
         ? { ...prev, participants: { ...prev.participants, [participant.id]: participant } }
         : prev);
-    });
+    };
 
-    socket.on('participant-moved', ({ participant }: { participant: Participant }) => {
+    const onParticipantMoved = ({ participant }: { participant: Participant }) => {
       setSession(prev => prev
         ? { ...prev, participants: { ...prev.participants, [participant.id]: participant } }
         : prev);
-    });
+    };
 
-    socket.on('participant-left', ({ participantId }: { participantId: string }) => {
+    const onParticipantLeft = ({ participantId }: { participantId: string }) => {
       setSession(prev => {
         if (!prev) return prev;
         const participants = { ...prev.participants };
@@ -177,9 +203,9 @@ export default function Session() {
         return { ...prev, participants };
       });
       notifiedRef.current.delete(participantId);
-    });
+    };
 
-    socket.on('participant-status', ({ participantId, online }: { participantId: string; online: boolean }) => {
+    const onParticipantStatus = ({ participantId, online }: { participantId: string; online: boolean }) => {
       setSession(prev => {
         if (!prev?.participants[participantId]) return prev;
         return {
@@ -190,14 +216,14 @@ export default function Session() {
           },
         };
       });
-    });
+    };
 
-    socket.on('chat-message', ({ message }: { message: ChatMessage }) => {
+    const onChatMessage = ({ message }: { message: ChatMessage }) => {
       setChatMessages(prev => [...prev, message]);
       if (!showChatRef.current) setUnreadCount(c => c + 1);
-    });
+    };
 
-    socket.on('error', ({ message, code }: { message: string; code?: string }) => {
+    const onError = ({ message, code }: { message: string; code?: string }) => {
       if (code === 'WRONG_PASSWORD' || message === 'Incorrect password') {
         setPasswordError('Wrong password. Try again.');
         setPendingPassword('');
@@ -206,33 +232,53 @@ export default function Session() {
       } else {
         console.error('Socket:', message);
       }
-    });
+    };
 
-    socket.on('session-ended', () => {
+    const onSessionEnded = () => {
       setSessionEnded(true);
       sessionEndTimerRef.current = setTimeout(() => navigate('/'), 3000);
-    });
+    };
+
+    socket.on('connect',              onConnect);
+    socket.on('disconnect',           onDisconnect);
+    socket.on('session-joined',       onSessionJoined);
+    socket.on('venue-points-updated', onVenuePointsUpdated);
+    socket.on('participant-joined',   onParticipantJoined);
+    socket.on('participant-moved',    onParticipantMoved);
+    socket.on('participant-left',     onParticipantLeft);
+    socket.on('participant-status',   onParticipantStatus);
+    socket.on('chat-message',         onChatMessage);
+    socket.on('error',                onError);
+    socket.on('session-ended',        onSessionEnded);
+    // M-10: socket.io manager-level event for permanent failure
+    socket.io.on('reconnect_failed',  onReconnectFailed);
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('session-joined');
-      socket.off('participant-joined');
-      socket.off('participant-moved');
-      socket.off('participant-left');
-      socket.off('participant-status');
-      socket.off('chat-message');
-      socket.off('error');
-      socket.off('session-ended');
-      socket.off('venue-points-updated');
+      // H-3: pass the exact handler reference so only our listener is removed.
+      socket.off('connect',              onConnect);
+      socket.off('disconnect',           onDisconnect);
+      socket.off('session-joined',       onSessionJoined);
+      socket.off('venue-points-updated', onVenuePointsUpdated);
+      socket.off('participant-joined',   onParticipantJoined);
+      socket.off('participant-moved',    onParticipantMoved);
+      socket.off('participant-left',     onParticipantLeft);
+      socket.off('participant-status',   onParticipantStatus);
+      socket.off('chat-message',         onChatMessage);
+      socket.off('error',                onError);
+      socket.off('session-ended',        onSessionEnded);
+      socket.io.off('reconnect_failed',  onReconnectFailed);
+
       if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
-      if (socket.connected) {
+
+      // M-5: guard against double-disconnect (Leave button also calls disconnect).
+      if (!disconnectedRef.current && socket.connected) {
+        disconnectedRef.current = true;
         socket.emit('leave-session');
         socket.disconnect();
       }
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [sessionId]);
+  }, [sessionId, navigate]);
 
   const arrivalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -248,18 +294,22 @@ export default function Session() {
     if (session.venuePoints.length > 0) {
       // ── Venue mode: fire when any participant reaches a venue point ──────────
       for (const p of Object.values(session.participants)) {
-        if (!p.lat || !p.lng) continue;
+        // L-9: strict null check — !p.lat would suppress lat=0 (equator)
+        if (p.lat === null || p.lng === null) continue;
         for (const venue of session.venuePoints) {
           const key = `${p.id}:${venue.id}`;
           if (notifiedRef.current.has(key)) continue;
           if (haversineKm(p.lat, p.lng, venue.lat, venue.lng) < ARRIVED_THRESHOLD_KM) {
             notifiedRef.current.add(key);
-            const who  = p.id === session.myId ? 'You' : p.name;
-            const msg  = `${who} arrived at ${venue.label}!`;
-            setArrivals(prev => [...prev, msg]);
+            const who = p.id === session.myId ? 'You' : p.name;
+            const msg = `${who} arrived at ${venue.label}!`;
+            // L-2: use a unique id per toast so React keys never collide even when
+            // the same message appears twice (e.g. two participants, same venue name).
+            const id  = crypto.randomUUID();
+            setArrivals(prev => [...prev, { id, msg }]);
             if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
             const t = setTimeout(() => {
-              setArrivals(prev => prev.filter(m => m !== msg));
+              setArrivals(prev => prev.filter(a => a.id !== id));
             }, 5000);
             arrivalTimersRef.current.push(t);
           }
@@ -268,18 +318,21 @@ export default function Session() {
     } else {
       // ── No venue: fire when another participant gets near me ─────────────────
       const me = session.participants[session.myId];
-      if (!me?.lat || !me?.lng) return;
+      // L-9: strict null check
+      if (me?.lat === null || me?.lng === null || !me) return;
 
       for (const p of Object.values(session.participants)) {
-        if (p.id === session.myId || !p.lat || !p.lng) continue;
+        // L-9: strict null check
+        if (p.id === session.myId || p.lat === null || p.lng === null) continue;
         if (haversineKm(me.lat, me.lng, p.lat, p.lng) < ARRIVED_THRESHOLD_KM
             && !notifiedRef.current.has(p.id)) {
           notifiedRef.current.add(p.id);
           const msg = `${p.name} has arrived!`;
-          setArrivals(prev => [...prev, msg]);
+          const id  = crypto.randomUUID(); // L-2
+          setArrivals(prev => [...prev, { id, msg }]);
           if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
           const t = setTimeout(() => {
-            setArrivals(prev => prev.filter(m => m !== msg));
+            setArrivals(prev => prev.filter(a => a.id !== id));
             notifiedRef.current.delete(p.id);
           }, 5000);
           arrivalTimersRef.current.push(t);
@@ -297,8 +350,10 @@ export default function Session() {
       pos => {
         let lat = pos.coords.latitude;
         let lng = pos.coords.longitude;
-        if (approxRef.current) {
-          const a = toApproximate(lat, lng);
+        // M-6: use the stable per-session approximator (not a stateless snap) so
+        // the same real position maps to different grid cells across sessions.
+        if (approxRef.current && approxFnRef.current) {
+          const a = approxFnRef.current(lat, lng);
           lat = a.lat;
           lng = a.lng;
         }
@@ -333,11 +388,19 @@ export default function Session() {
 
   const handleConsent = useCallback((name: string, approxMode: boolean) => {
     approxRef.current = approxMode;
+    // M-6: create a fresh per-session approximator seeded with a random UUID so
+    // the same GPS coordinate hashes to a different grid cell each session.
+    if (approxMode) {
+      approxFnRef.current = makeApproximator(crypto.randomUUID());
+    } else {
+      approxFnRef.current = null;
+    }
     setShowConsent(false);
 
-    const doJoin = () => {
-      if (hostState?.isHost) {
-        socket.emit('join-session', {
+    // H-5: persist join params so the reconnect handler in the socket effect can
+    // re-emit join-session if the socket drops and re-establishes.
+    const params = hostState?.isHost
+      ? {
           sessionId,
           name,
           config: {
@@ -347,15 +410,15 @@ export default function Session() {
             maxParticipants: hostState.maxParticipants ?? 20,
             venuePoints:     hostState.venuePoints    ?? [],
           },
-        });
-      } else {
-        socket.emit('join-session', {
+        }
+      : {
           sessionId,
           name,
           password: pendingPassword || undefined,
-        });
-      }
-    };
+        };
+    joinParamsRef.current = params;
+
+    const doJoin = () => socket.emit('join-session', params);
 
     if (socket.connected) {
       doJoin();
@@ -463,6 +526,8 @@ export default function Session() {
           {session && !amHost && (
             <button
               onClick={() => {
+                // M-5: set the guard so the useEffect cleanup doesn't also disconnect.
+                disconnectedRef.current = true;
                 socket.emit('leave-session');
                 socket.disconnect();
                 navigate('/');
@@ -537,10 +602,11 @@ export default function Session() {
         {/* Arrived toasts — fixed so pinch-zoom / layout shifts don't displace them */}
         {arrivals.length > 0 && (
           <div className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
-            {arrivals.map(msg => (
-              <div key={msg} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
+            {/* L-2: key on unique id, not message text, to avoid collisions */}
+            {arrivals.map(a => (
+              <div key={a.id} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
                 <span className="text-lg">🎉</span>
-                <span>{msg}</span>
+                <span>{a.msg}</span>
               </div>
             ))}
           </div>
@@ -646,6 +712,33 @@ export default function Session() {
             <button
               onClick={() => navigate('/')}
               className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* M-10: Reconnect-failed overlay — shown when socket.io exhausts all
+           reconnection attempts (reconnectionAttempts=5 in socket.ts).           */}
+      {reconnectFailed && !sessionEnded && !sessionExpired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+            <div className="text-4xl mb-4">📡</div>
+            <h2 className="text-white text-xl font-bold mb-2">Connection Lost</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              Unable to reconnect to the server after several attempts.
+              Check your internet connection and try again.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full mt-2 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition-colors text-sm"
             >
               Back to Home
             </button>

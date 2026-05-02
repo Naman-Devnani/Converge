@@ -5,7 +5,10 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/icon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- L-1: Removed user-scalable=no / maximum-scale=1.0 (WCAG 1.4.4 violation).
+         The map container itself uses touch-action:pan-x pan-y via CSS to
+         capture swipe without blocking browser pinch-to-zoom globally. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10b981" />
     <meta name="description" content="Privacy-first mutual live location sharing for real-world meetups" />
     <meta name="mobile-web-app-capable" content="yes" />

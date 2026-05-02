@@ -26,7 +26,7 @@ Meeting someone in real life still looks like this:
 
 > "Where are you?" → "I'm 5 minutes away." → "Which gate?" → "Near the entrance." → "I can't see you." → ...
 
-This happens at **airports, malls, concerts, festivals, weddings, college campuses, first dates, group trips** — anywhere two people need to physically find each other.
+This happens at **airports, malls, concerts, festivals, weddings, college campuses, first dates, group trips** — anywhere two or more people need to physically find each other.
 
 Existing apps like Google Maps and WhatsApp location sharing weren't built for this. They're one-way, permanent, and require too many steps.
 
@@ -49,12 +49,18 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 | Feature | Description |
 |---|---|
 | 🗺️ **Mutual live tracking** | Everyone in the session sees each other's real-time position |
-| ⏱️ **Smart ETA** | Live distance and estimated time to meetup |
-| 🔒 **Privacy-first** | Mutual consent required, no background tracking, no data stored after session |
+| ⏱️ **Smart ETA** | Live distance and estimated time to meetup for each participant |
+| 🏁 **Venue midpoint** | "Meet here" marker auto-placed at the centroid of all participants |
+| 💬 **In-session chat** | Group chat panel with unread badge — no phone numbers needed |
+| 🔒 **Optional password** | Password-protect sessions; memorable generated passwords (e.g. `amber-peak-44`) |
 | 🌫️ **Approximate mode** | Optional ±500 m location blur for extra privacy |
-| 🎉 **Arrived alerts** | Auto-notification when someone reaches within 80 m of you |
+| 🎉 **Arrived alerts** | Notification + haptic when someone reaches within 80 m of you |
+| ⏳ **Custom expiry** | Sessions expire in 1–24 h (default 2 h), or 10 min after everyone leaves |
+| 👥 **Participant limit** | Set max 2–50 people per session |
+| 🟢 **Online/offline status** | Participant dot goes grey on disconnect, removed after 30 s grace period |
+| 📋 **Session history** | Last 5 sessions saved locally — rejoin with one tap |
+| 📤 **WhatsApp deeplink** | Share link directly to WhatsApp — password always shared separately |
 | 🔗 **No install needed** | Web-first — share a link, open in browser, done |
-| ⏳ **Auto-expiring sessions** | Sessions expire 2 hours after creation or 10 min after everyone leaves |
 | 📱 **PWA ready** | Add to Home Screen on iOS and Android |
 | 🌐 **Open source** | Transparent codebase — no dark patterns, no data selling |
 
@@ -75,13 +81,14 @@ No endless texting. No permanent tracking. No app install. Just — meet.
        └──────────── Live Map ────────────┘
                   Both see each other
                   Distance + ETA shown
-                  🎉 "Bob has arrived!" at 80m
+                  🏁 Midpoint "Meet here" marker
+                  🎉 "Bob has arrived!" at 80 m
 ```
 
-1. **Create** — tap "Create Meetup", get a unique session URL
-2. **Share** — send the link via WhatsApp, iMessage, any app
+1. **Create** — tap "Create Meetup", optionally set a name / password / expiry
+2. **Share** — send the link via WhatsApp or copy it; share the password separately if set
 3. **Consent** — each person approves location sharing (browser prompt)
-4. **Meet** — live map shows everyone moving in real time
+4. **Meet** — live map shows everyone moving in real time, chat panel available
 5. **Done** — close the tab, session ends, no trace left
 
 ---
@@ -95,7 +102,7 @@ React 18 + TypeScript       Node.js + Express
 Vite 5                      Socket.io 4
 Tailwind CSS 3              In-memory session store
 react-leaflet 4             TypeScript
-CartoDB dark map tiles      
+CartoDB dark map tiles
 ```
 
 **Why these choices?**
@@ -120,23 +127,21 @@ CartoDB dark map tiles
 git clone https://github.com/Naman-Devnani/MeetSync.git
 cd MeetSync
 
-# 2. Install all dependencies
+# 2. Install all dependencies (workspaces)
 npm install
-npm install --workspace=server
-npm install --workspace=client
 
-# 3. Start both servers
+# 3. Start both servers concurrently
 npm run dev
 ```
 
 | Service | URL |
 |---|---|
-| Client (React) | http://localhost:5173 |
+| Client (React + Vite) | http://localhost:5173 |
 | Server (API + Sockets) | http://localhost:3001 |
 
-### Test with two people locally
+### Test with multiple people locally
 
-Open **two browser tabs** at `http://localhost:5173` — each tab simulates a different user. Both will appear on the map once location is granted.
+Open **two or more browser tabs** at `http://localhost:5173` — each tab simulates a different user. All will appear on the map once location is granted.
 
 ---
 
@@ -153,9 +158,10 @@ This repo includes a `render.yaml` for one-click deployment.
 5. Click **Apply**
 
 Render will automatically:
-- Run `npm ci && npm run build`
-- Start `node server/dist/index.js`
-- Assign a `https://meetsync.onrender.com` URL with auto HTTPS
+- Install dependencies (including devDependencies for the build)
+- Build the React client with Vite
+- Compile the TypeScript server
+- Serve everything from `node server/dist/index.js`
 
 > **Why HTTPS matters:** Browsers only allow geolocation on secure origins (HTTPS or localhost). Without it, location sharing won't work on real devices.
 
@@ -180,20 +186,26 @@ MeetSync/
 │   │   └── icons/icon.svg     # App icon
 │   └── src/
 │       ├── pages/
-│       │   ├── Home.tsx       # Landing page
-│       │   └── Session.tsx    # Live map session
+│       │   ├── Home.tsx            # Landing page + advanced settings
+│       │   └── Session.tsx         # Live map session
 │       ├── components/
-│       │   ├── MeetMap.tsx         # Leaflet map + live markers
+│       │   ├── MeetMap.tsx         # Leaflet map, live markers, midpoint
 │       │   ├── ConsentModal.tsx    # Privacy consent + name picker
-│       │   ├── ShareModal.tsx      # Copy/share session link
-│       │   └── ParticipantList.tsx # Distance + ETA cards
-│       └── utils/
-│           └── geo.ts         # Haversine, ETA, privacy blur
+│       │   ├── PasswordModal.tsx   # Guest password entry
+│       │   ├── ChatPanel.tsx       # In-session group chat
+│       │   ├── ShareModal.tsx      # Copy link + password, WhatsApp share
+│       │   └── ParticipantList.tsx # Distance, ETA, online status cards
+│       ├── utils/
+│       │   ├── geo.ts         # Haversine, ETA, privacy blur
+│       │   ├── password.ts    # Memorable password generator
+│       │   └── history.ts     # LocalStorage session history
+│       ├── socket.ts          # Socket.io client singleton
+│       └── types.ts           # Shared TypeScript types
 │
 ├── server/                    # Node.js backend
 │   └── src/
 │       ├── index.ts           # Express + Socket.io server
-│       ├── sessions.ts        # In-memory session store
+│       ├── sessions.ts        # In-memory session store + password hashing
 │       └── types.ts           # Shared TypeScript types
 │
 ├── render.yaml                # One-click Render deployment
@@ -209,18 +221,17 @@ MeetSync was built with privacy as a core constraint, not an afterthought.
 - **Mutual consent** — nobody can see you without your explicit approval
 - **No accounts** — no email, no password, no profile
 - **No persistent storage** — locations exist only in RAM during the session
-- **Auto-expiry** — sessions self-destruct after 2 hours or 10 min of inactivity
+- **Auto-expiry** — sessions self-destruct after 1–24 h (default 2 h) or 10 min of inactivity
 - **Approximate mode** — opt-in ±500 m grid snap to share area, not exact position
+- **Password separation** — session passwords are never included in the shareable link or WhatsApp message; they must be shared through a separate channel
 - **Open source** — the entire codebase is auditable. No hidden telemetry.
 
 ---
 
 ## Roadmap
 
-- [ ] Approximate location mode improvements (custom radius)
-- [ ] Named sessions ("Airport pickup", "Festival meetup")
-- [ ] Session history (last 5 sessions, local storage only)
 - [ ] AI-powered meetup point suggestions for crowded venues
+- [ ] Custom approximate radius (beyond fixed 500 m)
 - [ ] Self-hosting guide (Docker)
 - [ ] Native mobile apps (React Native)
 

@@ -10,22 +10,28 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function makeIcon(color: string, name: string, isMe: boolean) {
   const size = isMe ? 22 : 18;
   const half = size / 2;
+  const safeName  = escapeHtml(name);
+  const safeColor = escapeHtml(color);
   return L.divIcon({
     html: `
       <div style="position:relative;width:${size}px;height:${size}px;">
         ${isMe ? `<div style="
           position:absolute;inset:0;border-radius:50%;
-          background:${color};opacity:0.35;
+          background:${safeColor};opacity:0.35;
           animation:pulse-ring 2s ease-out infinite;
         "></div>` : ''}
         <div class="ms-marker ${isMe ? 'ms-marker-me' : ''}" style="
           width:${size}px;height:${size}px;
-          background:${color};
+          background:${safeColor};
         "></div>
-        <div class="ms-label">${name}${isMe ? ' ✦' : ''}</div>
+        <div class="ms-label">${safeName}${isMe ? ' ✦' : ''}</div>
       </div>
     `,
     className: '',

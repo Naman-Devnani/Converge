@@ -117,8 +117,8 @@ function Markers({ participants, myId }: MarkersProps) {
 
     // Midpoint "Meet here" marker — only when 2+ people are located
     if (located.length >= 2) {
-      const avgLat = located.reduce((s, p) => s + p.lat!, 0) / located.length;
-      const avgLng = located.reduce((s, p) => s + p.lng!, 0) / located.length;
+      const avgLat = located.reduce((s, p) => s + (p.lat ?? 0), 0) / located.length;
+      const avgLng = located.reduce((s, p) => s + (p.lng ?? 0), 0) / located.length;
       const midPos: L.LatLngExpression = [avgLat, avgLng];
       if (!midpointRef.current) {
         midpointRef.current = L.marker(midPos, {

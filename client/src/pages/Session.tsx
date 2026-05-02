@@ -174,8 +174,8 @@ export default function Session() {
       if (!showChatRef.current) setUnreadCount(c => c + 1);
     });
 
-    socket.on('error', ({ message }: { message: string }) => {
-      if (message === 'Incorrect password') {
+    socket.on('error', ({ message, code }: { message: string; code?: string }) => {
+      if (code === 'WRONG_PASSWORD' || message === 'Incorrect password') {
         setPasswordError('Wrong password. Try again.');
         setShowConsent(false);
         setShowPasswordModal(true);
@@ -259,6 +259,10 @@ export default function Session() {
       err => {
         if (err.code === err.PERMISSION_DENIED)
           setGeoError("Location permission denied. Others can't see you on the map.");
+        else if (err.code === err.TIMEOUT)
+          setGeoError("Location timed out. Check your GPS signal and try again.");
+        else
+          setGeoError("Location unavailable. Check your device settings.");
       },
       { enableHighAccuracy: true, maximumAge: 4000, timeout: 10000 },
     );

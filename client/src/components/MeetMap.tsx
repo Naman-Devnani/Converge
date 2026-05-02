@@ -131,6 +131,8 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
       } else {
         venueMarkersRef.current[vp.id].setLatLng(pos);
         venueMarkersRef.current[vp.id].setIcon(makeVenueIcon(vp.label, color));
+        // Re-add if detached (e.g. React StrictMode double-invoke removes it via cleanup)
+        venueMarkersRef.current[vp.id].addTo(map);
       }
     });
   }, [venuePoints, map]);
@@ -166,6 +168,7 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
       } else {
         markersRef.current[p.id].setLatLng(pos);
         markersRef.current[p.id].setIcon(makeIcon(p.color, p.name, isMe));
+        markersRef.current[p.id].addTo(map);
       }
 
       if (p.accuracy && p.accuracy > 15) {
@@ -197,6 +200,7 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
         }).addTo(map);
       } else {
         midpointRef.current.setLatLng(midPos);
+        midpointRef.current.addTo(map);
       }
     } else {
       midpointRef.current?.remove();

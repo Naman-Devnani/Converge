@@ -71,9 +71,10 @@ function Markers({ participants, myId }: MarkersProps) {
   const midpointRef     = useRef<L.Marker | null>(null);
   const userMovedRef    = useRef(false);
 
-  // Stop auto-fitting once the user manually pans or zooms
+  // Stop auto-fitting once the user manually pans or zooms.
+  // Check originalEvent so programmatic fitBounds/setView don't count.
   useEffect(() => {
-    const onInteract = () => { userMovedRef.current = true; };
+    const onInteract = (e: any) => { if (e.originalEvent) userMovedRef.current = true; };
     map.on('dragstart', onInteract);
     map.on('zoomstart', onInteract);
     return () => {
@@ -124,6 +125,10 @@ function Markers({ participants, myId }: MarkersProps) {
         } else {
           circlesRef.current[p.id].setLatLng(pos).setRadius(p.accuracy);
         }
+      } else {
+        // GPS improved below threshold — remove stale circle
+        circlesRef.current[p.id]?.remove();
+        delete circlesRef.current[p.id];
       }
     }
 

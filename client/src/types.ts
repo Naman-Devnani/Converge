@@ -1,3 +1,10 @@
+export interface VenuePoint {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Participant {
   id: string;
   name: string;
@@ -20,6 +27,7 @@ export interface SessionState {
   expiresAt: number;
   sessionName: string;
   hostId: string;
+  venuePoints: VenuePoint[];
 }
 
 export interface ChatMessage {

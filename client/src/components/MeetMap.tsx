@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import type { Participant } from '../types';
+import type { Participant, VenuePoint } from '../types';
+import { VENUE_COLORS } from './VenuePicker';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -59,16 +60,39 @@ function makeMidpointIcon() {
   });
 }
 
+function makeVenueIcon(label: string, color: string) {
+  const safeLabel = escapeHtml(label.slice(0, 24));
+  const safeColor = escapeHtml(color);
+  return L.divIcon({
+    html: `
+      <div style="position:relative;width:34px;height:34px;">
+        <div style="
+          width:34px;height:34px;border-radius:50%;
+          background:${safeColor};border:3px solid #fff;
+          display:flex;align-items:center;justify-content:center;
+          font-size:15px;box-shadow:0 2px 10px rgba(0,0,0,0.6);
+        ">📍</div>
+        <div class="ms-label" style="background:${safeColor};color:#fff;font-weight:700;white-space:nowrap;">${safeLabel}</div>
+      </div>
+    `,
+    className: '',
+    iconSize:   [34, 34],
+    iconAnchor: [17, 17],
+  });
+}
+
 interface MarkersProps {
   participants: Participant[];
   myId: string;
+  venuePoints: VenuePoint[];
 }
 
-function Markers({ participants, myId }: MarkersProps) {
+function Markers({ participants, myId, venuePoints }: MarkersProps) {
   const map = useMap();
   const markersRef      = useRef<Record<string, L.Marker>>({});
   const circlesRef      = useRef<Record<string, L.Circle>>({});
   const midpointRef     = useRef<L.Marker | null>(null);
+  const venueMarkersRef = useRef<Record<string, L.Marker>>({});
   const userMovedRef    = useRef(false);
 
   // Stop auto-fitting once the user manually pans or zooms.
@@ -83,6 +107,35 @@ function Markers({ participants, myId }: MarkersProps) {
     };
   }, [map]);
 
+  // ── Venue point markers ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const activeIds = new Set(venuePoints.map(v => v.id));
+
+    // Remove stale venue markers
+    for (const id of Object.keys(venueMarkersRef.current)) {
+      if (!activeIds.has(id)) {
+        venueMarkersRef.current[id].remove();
+        delete venueMarkersRef.current[id];
+      }
+    }
+
+    // Add / update venue markers
+    venuePoints.forEach((vp, i) => {
+      const pos: L.LatLngExpression = [vp.lat, vp.lng];
+      const color = VENUE_COLORS[i % VENUE_COLORS.length];
+      if (!venueMarkersRef.current[vp.id]) {
+        venueMarkersRef.current[vp.id] = L.marker(pos, {
+          icon: makeVenueIcon(vp.label, color),
+          zIndexOffset: 500,
+        }).addTo(map);
+      } else {
+        venueMarkersRef.current[vp.id].setLatLng(pos);
+        venueMarkersRef.current[vp.id].setIcon(makeVenueIcon(vp.label, color));
+      }
+    });
+  }, [venuePoints, map]);
+
+  // ── Participant markers + auto-centroid + auto-fit ───────────────────────────
   useEffect(() => {
     const activeIds = new Set(participants.map(p => p.id));
 
@@ -132,8 +185,8 @@ function Markers({ participants, myId }: MarkersProps) {
       }
     }
 
-    // Midpoint "Meet here" marker — only when 2+ people are located
-    if (located.length >= 2) {
+    // Auto-centroid "Meet here" — only when no venue points set and 2+ people located
+    if (venuePoints.length === 0 && located.length >= 2) {
       const avgLat = located.reduce((s, p) => s + (p.lat ?? 0), 0) / located.length;
       const avgLng = located.reduce((s, p) => s + (p.lng ?? 0), 0) / located.length;
       const midPos: L.LatLngExpression = [avgLat, avgLng];
@@ -150,23 +203,31 @@ function Markers({ participants, myId }: MarkersProps) {
       midpointRef.current = null;
     }
 
+    // Auto-fit: include both participant positions and venue points
+    const allLatlngs: L.LatLngExpression[] = [
+      ...latlngs,
+      ...venuePoints.map(vp => [vp.lat, vp.lng] as L.LatLngExpression),
+    ];
+
     if (!userMovedRef.current) {
-      if (latlngs.length === 1) {
-        map.setView(latlngs[0] as L.LatLngExpression, Math.max(map.getZoom(), 15), { animate: true });
-      } else if (latlngs.length > 1) {
-        map.fitBounds(L.latLngBounds(latlngs as L.LatLngExpression[]), {
+      if (allLatlngs.length === 1) {
+        map.setView(allLatlngs[0] as L.LatLngExpression, Math.max(map.getZoom(), 15), { animate: true });
+      } else if (allLatlngs.length > 1) {
+        map.fitBounds(L.latLngBounds(allLatlngs as L.LatLngExpression[]), {
           padding: [64, 64],
           maxZoom: 17,
           animate: true,
         });
       }
     }
-  }, [participants, myId, map]);
+  }, [participants, myId, venuePoints, map]);
 
+  // Cleanup all markers on unmount
   useEffect(() => {
     return () => {
       Object.values(markersRef.current).forEach(m => m.remove());
       Object.values(circlesRef.current).forEach(c => c.remove());
+      Object.values(venueMarkersRef.current).forEach(m => m.remove());
       midpointRef.current?.remove();
     };
   }, []);
@@ -197,9 +258,10 @@ function ZoomControls() {
 interface Props {
   participants: Participant[];
   myId: string;
+  venuePoints: VenuePoint[];
 }
 
-export default function MeetMap({ participants, myId }: Props) {
+export default function MeetMap({ participants, myId, venuePoints }: Props) {
   return (
     <MapContainer
       center={[20, 0]}
@@ -213,7 +275,7 @@ export default function MeetMap({ participants, myId }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         maxZoom={19}
       />
-      <Markers participants={participants} myId={myId} />
+      <Markers participants={participants} myId={myId} venuePoints={venuePoints} />
       <ZoomControls />
     </MapContainer>
   );

@@ -14,9 +14,11 @@ import {
   isHost,
   endSession,
   addMessage,
+  updateVenuePoints,
   validatePassword,
   type SessionConfig,
 } from './sessions';
+import type { VenuePoint } from './types';
 
 const app    = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -111,6 +113,7 @@ io.on('connection', (socket) => {
       messages:     session.messages,
       isHost:       isSessionHost,
       hostId:       session.hostSocketId,
+      venuePoints:  session.venuePoints,
     });
 
     socket.to(sessionId).emit('participant-joined', { participant });
@@ -194,6 +197,35 @@ io.on('connection', (socket) => {
       offlineTimers.set(socket.id, timer);
     }
   }
+
+  socket.on('update-venue-points', ({ points }: { points: VenuePoint[] }) => {
+    const sessionId = socketSession.get(socket.id);
+    if (!sessionId) return;
+    if (!isHost(sessionId, socket.id)) {
+      socket.emit('error', { message: 'Only the host can update venue points' }); return;
+    }
+    if (!Array.isArray(points)) return;
+
+    // Validate each point
+    const validated: VenuePoint[] = points
+      .filter(p =>
+        p && typeof p.id === 'string' &&
+        typeof p.label === 'string' &&
+        typeof p.lat === 'number' && typeof p.lng === 'number' &&
+        p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180 &&
+        isFinite(p.lat) && isFinite(p.lng),
+      )
+      .map(p => ({
+        id:    p.id.slice(0, 64),
+        label: p.label.trim().slice(0, 40) || 'Venue',
+        lat:   p.lat,
+        lng:   p.lng,
+      }));
+
+    const saved = updateVenuePoints(sessionId, validated);
+    if (!saved) return;
+    io.to(sessionId).emit('venue-points-updated', { venuePoints: saved });
+  });
 
   socket.on('end-session', () => {
     const sessionId = socketSession.get(socket.id);

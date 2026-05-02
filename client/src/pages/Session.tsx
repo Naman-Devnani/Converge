@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { socket } from '../socket';
-import type { Participant, SessionState, ChatMessage } from '../types';
+import type { Participant, SessionState, ChatMessage, VenuePoint } from '../types';
 import { haversineKm, toApproximate } from '../utils/geo';
 import { addToHistory } from '../utils/history';
 import MeetMap from '../components/MeetMap';
@@ -10,6 +10,7 @@ import ParticipantList from '../components/ParticipantList';
 import ShareModal from '../components/ShareModal';
 import PasswordModal from '../components/PasswordModal';
 import ChatPanel from '../components/ChatPanel';
+import VenuePicker from '../components/VenuePicker';
 
 const ARRIVED_THRESHOLD_KM = 0.08;
 
@@ -19,6 +20,7 @@ interface HostState {
   password?: string;
   expiryHours?: number;
   maxParticipants?: number;
+  venuePoints?: VenuePoint[];
 }
 
 export default function Session() {
@@ -46,6 +48,8 @@ export default function Session() {
   const [confirmEnd,         setConfirmEnd]         = useState(false);
   const [sessionEnded,       setSessionEnded]       = useState(false);
   const [sessionExpired,     setSessionExpired]     = useState(false);
+  const [showVenueEditor,    setShowVenueEditor]    = useState(false);
+  const [draftVenuePoints,   setDraftVenuePoints]   = useState<VenuePoint[]>([]);
 
   const watchIdRef        = useRef<number | null>(null);
   const approxRef         = useRef(false);
@@ -129,22 +133,28 @@ export default function Session() {
       messages: ChatMessage[];
       isHost: boolean;
       hostId: string;
+      venuePoints: VenuePoint[];
     }) => {
       const map: Record<string, Participant> = {};
       data.participants.forEach(p => { map[p.id] = p; });
       setSession({
-        sessionId: data.sessionId,
-        myId: data.myId,
+        sessionId:   data.sessionId,
+        myId:        data.myId,
         participants: map,
-        expiresAt: data.expiresAt,
+        expiresAt:   data.expiresAt,
         sessionName: data.sessionName,
-        hostId: data.hostId,
+        hostId:      data.hostId,
+        venuePoints: data.venuePoints ?? [],
       });
       setExpiresAt(data.expiresAt);
       setSessionName(data.sessionName);
       setChatMessages(data.messages || []);
       setAmHost(data.isHost);
       addToHistory({ sessionId: data.sessionId, sessionName: data.sessionName, joinedAt: Date.now() });
+    });
+
+    socket.on('venue-points-updated', ({ venuePoints }: { venuePoints: VenuePoint[] }) => {
+      setSession(prev => prev ? { ...prev, venuePoints } : prev);
     });
 
     socket.on('participant-joined', ({ participant }: { participant: Participant }) => {
@@ -214,6 +224,7 @@ export default function Session() {
       socket.off('chat-message');
       socket.off('error');
       socket.off('session-ended');
+      socket.off('venue-points-updated');
       if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
       if (socket.connected) {
         socket.emit('leave-session');
@@ -307,10 +318,11 @@ export default function Session() {
           sessionId,
           name,
           config: {
-            name: hostState.sessionName || '',
-            password:    hostState.password    || '',
-            expiryHours: hostState.expiryHours ?? 2,
+            name:            hostState.sessionName    || '',
+            password:        hostState.password       || '',
+            expiryHours:     hostState.expiryHours    ?? 2,
             maxParticipants: hostState.maxParticipants ?? 20,
+            venuePoints:     hostState.venuePoints    ?? [],
           },
         });
       } else {
@@ -412,6 +424,18 @@ export default function Session() {
             </button>
           )}
 
+          {/* Venue editor (host only) */}
+          {session && amHost && (
+            <button
+              onClick={() => { setDraftVenuePoints(session.venuePoints); setShowVenueEditor(true); }}
+              className="w-9 h-9 flex items-center justify-center bg-[#1e293b] hover:bg-[#334155] text-white rounded-xl transition-colors text-base"
+              aria-label="Edit venue points"
+              title="Venue points"
+            >
+              📍
+            </button>
+          )}
+
           {/* Leave session (guests only) */}
           {session && !amHost && (
             <button
@@ -466,7 +490,11 @@ export default function Session() {
       {/* ── Map ── */}
       <div className="flex-1 relative min-h-0">
         {session ? (
-          <MeetMap participants={participants} myId={session.myId} />
+          <MeetMap
+            participants={participants}
+            myId={session.myId}
+            venuePoints={session.venuePoints}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1e293b]">
             <div className="text-center">
@@ -527,6 +555,51 @@ export default function Session() {
           myId={session.myId}
           onClose={() => setShowChat(false)}
         />
+      )}
+
+      {/* Venue editor modal (host only) */}
+      {showVenueEditor && session && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-800/60 flex-shrink-0">
+              <div>
+                <h2 className="text-white font-bold text-base">Venue Points</h2>
+                <p className="text-slate-500 text-xs mt-0.5">Pre-set meetup spots visible to everyone</p>
+              </div>
+              <button
+                onClick={() => setShowVenueEditor(false)}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-white bg-slate-800 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-5 py-4">
+              <VenuePicker venuePoints={draftVenuePoints} onChange={setDraftVenuePoints} />
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-5 py-4 border-t border-slate-800/60 flex-shrink-0">
+              <button
+                onClick={() => setShowVenueEditor(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  socket.emit('update-venue-points', { points: draftVenuePoints });
+                  setShowVenueEditor(false);
+                }}
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-semibold text-sm transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Session ended overlay */}

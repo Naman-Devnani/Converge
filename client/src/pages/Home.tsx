@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generatePassword } from '../utils/password';
 import { getHistory, removeFromHistory } from '../utils/history';
+import VenuePicker from '../components/VenuePicker';
+import type { VenuePoint } from '../types';
 
 function genSessionId(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
@@ -34,17 +36,20 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [expiryHours,  setExpiryHours]  = useState(2);
   const [maxPeople,    setMaxPeople]    = useState(20);
+  const [venueMode,    setVenueMode]    = useState(false);
+  const [venuePoints,  setVenuePoints]  = useState<VenuePoint[]>([]);
   const [history, setHistory] = useState(getHistory);
 
   function createMeetup() {
     const sessionId = genSessionId();
     navigate(`/session/${sessionId}`, {
       state: {
-        isHost:      true,
-        sessionName: sessionName.trim(),
-        password:    password.trim(),
+        isHost:          true,
+        sessionName:     sessionName.trim(),
+        password:        password.trim(),
         expiryHours,
         maxParticipants: maxPeople,
+        venuePoints:     venueMode ? venuePoints : [],
       },
     });
   }
@@ -175,6 +180,28 @@ export default function Home() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Venue Mode */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Venue mode
+                  </label>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Pre-set one or more meetup points</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setVenueMode(v => !v); if (venueMode) setVenuePoints([]); }}
+                  className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${venueMode ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                >
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${venueMode ? 'translate-x-4' : ''}`} />
+                </button>
+              </div>
+              {venueMode && (
+                <VenuePicker venuePoints={venuePoints} onChange={setVenuePoints} />
+              )}
             </div>
           </div>
         )}

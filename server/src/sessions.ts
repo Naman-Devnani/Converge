@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
-import type { Session, Participant, ChatMessage } from './types';
+import type { Session, Participant, ChatMessage, VenuePoint } from './types';
 
 const COLORS = [
   '#ef4444', '#3b82f6', '#10b981', '#f59e0b',
@@ -30,6 +30,7 @@ export interface SessionConfig {
   password?: string;
   expiryHours?: number;
   maxParticipants?: number;
+  venuePoints?: VenuePoint[];
 }
 
 export function getSession(id: string): Session | undefined {
@@ -50,6 +51,7 @@ export function getOrCreateSession(id: string, config?: SessionConfig): Session 
     passwordHash: config?.password ? hashPassword(config.password) : null,
     maxParticipants: Math.min(Math.max(config?.maxParticipants ?? 20, 2), 50),
     messages: [],
+    venuePoints: (config?.venuePoints ?? []).slice(0, 5),
   };
   sessions.set(id, session);
   return session;
@@ -141,4 +143,11 @@ export function addMessage(
   session.messages.push(message);
   if (session.messages.length > MAX_MESSAGES) session.messages.shift();
   return message;
+}
+
+export function updateVenuePoints(sessionId: string, points: VenuePoint[]): VenuePoint[] | null {
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+  session.venuePoints = points.slice(0, 5);
+  return session.venuePoints;
 }

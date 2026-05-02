@@ -70,8 +70,15 @@ io.on('connection', (socket) => {
     if (!sessionId || typeof sessionId !== 'string') {
       socket.emit('error', { message: 'Invalid session ID' }); return;
     }
+    if (typeof name !== 'string') {
+      socket.emit('error', { message: 'Invalid name' }); return;
+    }
 
     const session = getOrCreateSession(sessionId, config);
+
+    if (Date.now() > session.expiresAt) {
+      socket.emit('error', { message: 'Session has expired', code: 'SESSION_EXPIRED' }); return;
+    }
 
     // Password validation (guests only — host passes config)
     if (session.passwordHash && !config) {

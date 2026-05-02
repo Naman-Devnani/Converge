@@ -47,10 +47,11 @@ export default function Session() {
   const [sessionEnded,       setSessionEnded]       = useState(false);
   const [sessionExpired,     setSessionExpired]     = useState(false);
 
-  const watchIdRef   = useRef<number | null>(null);
-  const approxRef    = useRef(false);
-  const notifiedRef  = useRef<Set<string>>(new Set());
-  const showChatRef  = useRef(false);
+  const watchIdRef        = useRef<number | null>(null);
+  const approxRef         = useRef(false);
+  const notifiedRef       = useRef<Set<string>>(new Set());
+  const showChatRef       = useRef(false);
+  const sessionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { showChatRef.current = showChat; }, [showChat]);
 
@@ -199,7 +200,7 @@ export default function Session() {
 
     socket.on('session-ended', () => {
       setSessionEnded(true);
-      setTimeout(() => navigate('/'), 3000);
+      sessionEndTimerRef.current = setTimeout(() => navigate('/'), 3000);
     });
 
     return () => {
@@ -213,6 +214,7 @@ export default function Session() {
       socket.off('chat-message');
       socket.off('error');
       socket.off('session-ended');
+      if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
       if (socket.connected) {
         socket.emit('leave-session');
         socket.disconnect();
@@ -484,8 +486,8 @@ export default function Session() {
         {/* Arrived toasts */}
         {arrivals.length > 0 && (
           <div className="absolute top-4 left-4 right-4 flex flex-col gap-2 z-20 pointer-events-none">
-            {arrivals.map((name, i) => (
-              <div key={i} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
+            {arrivals.map(name => (
+              <div key={name} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
                 <span className="text-lg">🎉</span>
                 <span>{name} has arrived!</span>
               </div>

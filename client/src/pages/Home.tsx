@@ -34,7 +34,7 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [expiryHours,  setExpiryHours]  = useState(2);
   const [maxPeople,    setMaxPeople]    = useState(20);
-  const history = getHistory();
+  const [history, setHistory] = useState(getHistory);
 
   function createMeetup() {
     const sessionId = genSessionId();
@@ -199,8 +199,8 @@ export default function Home() {
                     Rejoin
                   </button>
                   <button
-                    onClick={() => removeFromHistory(entry.sessionId)}
-                    className="text-slate-600 hover:text-slate-400 flex-shrink-0 text-sm"
+                    onClick={() => { removeFromHistory(entry.sessionId); setHistory(getHistory()); }}
+                    className="w-7 h-7 flex items-center justify-center text-slate-600 hover:text-slate-300 hover:bg-slate-700 rounded-lg flex-shrink-0 transition-colors text-sm"
                   >
                     ✕
                   </button>

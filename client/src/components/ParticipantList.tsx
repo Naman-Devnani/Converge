@@ -5,16 +5,17 @@ import { haversineKm, formatDistance, formatETA } from '../utils/geo';
 interface Props {
   participants: Participant[];
   myId: string;
+  hostId: string;
 }
 
-export default function ParticipantList({ participants, myId }: Props) {
+export default function ParticipantList({ participants, myId, hostId }: Props) {
   const me = participants.find(p => p.id === myId);
 
   return (
     <div className="relative">
       <div className="flex gap-3 overflow-x-auto px-4 py-3 scrollbar-thin">
         {participants.map(p => (
-          <Card key={p.id} participant={p} isMe={p.id === myId} me={me} />
+          <Card key={p.id} participant={p} isMe={p.id === myId} isHost={p.id === hostId} me={me} />
         ))}
         {participants.length === 1 && (
           <div className="flex-shrink-0 flex items-center justify-center bg-[#1e293b]/60 border border-dashed border-slate-700 rounded-2xl px-5 py-3 min-w-[140px]">
@@ -30,7 +31,7 @@ export default function ParticipantList({ participants, myId }: Props) {
   );
 }
 
-function Card({ participant: p, isMe, me }: { participant: Participant; isMe: boolean; me?: Participant }) {
+function Card({ participant: p, isMe, isHost, me }: { participant: Participant; isMe: boolean; isHost: boolean; me?: Participant }) {
   const dist = useMemo(() => {
     if (isMe || !me?.lat || !me?.lng || !p.lat || !p.lng) return null;
     return haversineKm(me.lat, me.lng, p.lat, p.lng);
@@ -55,10 +56,16 @@ function Card({ participant: p, isMe, me }: { participant: Participant; isMe: bo
             isOffline ? 'bg-slate-600' : 'bg-emerald-400'
           }`} />
         </div>
-        <span className="text-white text-sm font-semibold truncate max-w-[96px]">{p.name}</span>
-        {isMe && (
-          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 rounded-full px-1.5 py-0.5 flex-shrink-0">you</span>
-        )}
+        <span className="text-white text-sm font-semibold truncate max-w-[80px]">{p.name}</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {isHost
+            ? <span className="text-[10px] text-amber-400 bg-amber-500/10 rounded-full px-1.5 py-0.5">host</span>
+            : <span className="text-[10px] text-slate-400 bg-slate-700/60 rounded-full px-1.5 py-0.5">guest</span>
+          }
+          {isMe && (
+            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 rounded-full px-1.5 py-0.5">you</span>
+          )}
+        </div>
       </div>
 
       {/* Status */}

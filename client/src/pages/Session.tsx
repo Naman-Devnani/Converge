@@ -127,6 +127,7 @@ export default function Session() {
       sessionName: string;
       messages: ChatMessage[];
       isHost: boolean;
+      hostId: string;
     }) => {
       const map: Record<string, Participant> = {};
       data.participants.forEach(p => { map[p.id] = p; });
@@ -136,6 +137,7 @@ export default function Session() {
         participants: map,
         expiresAt: data.expiresAt,
         sessionName: data.sessionName,
+        hostId: data.hostId,
       });
       setExpiresAt(data.expiresAt);
       setSessionName(data.sessionName);
@@ -495,7 +497,7 @@ export default function Session() {
       {/* ── Participant list ── */}
       {session && (
         <div className="flex-shrink-0 bg-[#0f172a]/95 backdrop-blur-sm border-t border-slate-800/60">
-          <ParticipantList participants={participants} myId={session.myId} />
+          <ParticipantList participants={participants} myId={session.myId} hostId={session.hostId} />
         </div>
       )}
 

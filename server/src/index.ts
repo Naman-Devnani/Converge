@@ -103,6 +103,7 @@ io.on('connection', (socket) => {
       sessionName:  session.name,
       messages:     session.messages,
       isHost:       isSessionHost,
+      hostId:       session.hostSocketId,
     });
 
     socket.to(sessionId).emit('participant-joined', { participant });

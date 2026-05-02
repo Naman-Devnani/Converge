@@ -19,6 +19,7 @@ export interface SessionState {
   participants: Record<string, Participant>;
   expiresAt: number;
   sessionName: string;
+  hostId: string;
 }
 
 export interface ChatMessage {

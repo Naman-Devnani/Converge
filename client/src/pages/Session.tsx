@@ -202,6 +202,8 @@ export default function Session() {
     };
   }, [sessionId]);
 
+  const arrivalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   // "Arrived" detection + haptic
   useEffect(() => {
     if (!session) return;
@@ -217,12 +219,18 @@ export default function Session() {
         const name = p.name;
         setArrivals(prev => [...prev, name]);
         if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-        setTimeout(() => {
+        const t = setTimeout(() => {
           setArrivals(prev => prev.filter(n => n !== name));
           notifiedRef.current.delete(p.id);
         }, 5000);
+        arrivalTimersRef.current.push(t);
       }
     }
+
+    return () => {
+      arrivalTimersRef.current.forEach(clearTimeout);
+      arrivalTimersRef.current = [];
+    };
   }, [session]);
 
   const startLocationWatch = useCallback(() => {

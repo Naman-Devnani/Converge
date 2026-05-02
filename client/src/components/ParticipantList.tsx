@@ -32,8 +32,8 @@ export default function ParticipantList({ participants, myId }: Props) {
 
 function Card({ participant: p, isMe, me }: { participant: Participant; isMe: boolean; me?: Participant }) {
   const dist = useMemo(() => {
-    if (isMe || !me?.lat || !p.lat) return null;
-    return haversineKm(me.lat, me.lng!, p.lat, p.lng!);
+    if (isMe || !me?.lat || !me?.lng || !p.lat || !p.lng) return null;
+    return haversineKm(me.lat, me.lng, p.lat, p.lng);
   }, [p.lat, p.lng, me?.lat, me?.lng, isMe]);
 
   const hasLocation = p.lat !== null;

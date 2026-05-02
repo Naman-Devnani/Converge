@@ -244,23 +244,46 @@ export default function Session() {
   // "Arrived" detection + haptic
   useEffect(() => {
     if (!session) return;
-    const me = session.participants[session.myId];
-    if (!me?.lat || !me?.lng) return;
 
-    for (const p of Object.values(session.participants)) {
-      if (p.id === session.myId || !p.lat || !p.lng) continue;
-      const dist = haversineKm(me.lat, me.lng, p.lat, p.lng);
+    if (session.venuePoints.length > 0) {
+      // ── Venue mode: fire when any participant reaches a venue point ──────────
+      for (const p of Object.values(session.participants)) {
+        if (!p.lat || !p.lng) continue;
+        for (const venue of session.venuePoints) {
+          const key = `${p.id}:${venue.id}`;
+          if (notifiedRef.current.has(key)) continue;
+          if (haversineKm(p.lat, p.lng, venue.lat, venue.lng) < ARRIVED_THRESHOLD_KM) {
+            notifiedRef.current.add(key);
+            const who  = p.id === session.myId ? 'You' : p.name;
+            const msg  = `${who} arrived at ${venue.label}!`;
+            setArrivals(prev => [...prev, msg]);
+            if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+            const t = setTimeout(() => {
+              setArrivals(prev => prev.filter(m => m !== msg));
+            }, 5000);
+            arrivalTimersRef.current.push(t);
+          }
+        }
+      }
+    } else {
+      // ── No venue: fire when another participant gets near me ─────────────────
+      const me = session.participants[session.myId];
+      if (!me?.lat || !me?.lng) return;
 
-      if (dist < ARRIVED_THRESHOLD_KM && !notifiedRef.current.has(p.id)) {
-        notifiedRef.current.add(p.id);
-        const name = p.name;
-        setArrivals(prev => [...prev, name]);
-        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-        const t = setTimeout(() => {
-          setArrivals(prev => prev.filter(n => n !== name));
-          notifiedRef.current.delete(p.id);
-        }, 5000);
-        arrivalTimersRef.current.push(t);
+      for (const p of Object.values(session.participants)) {
+        if (p.id === session.myId || !p.lat || !p.lng) continue;
+        if (haversineKm(me.lat, me.lng, p.lat, p.lng) < ARRIVED_THRESHOLD_KM
+            && !notifiedRef.current.has(p.id)) {
+          notifiedRef.current.add(p.id);
+          const msg = `${p.name} has arrived!`;
+          setArrivals(prev => [...prev, msg]);
+          if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+          const t = setTimeout(() => {
+            setArrivals(prev => prev.filter(m => m !== msg));
+            notifiedRef.current.delete(p.id);
+          }, 5000);
+          arrivalTimersRef.current.push(t);
+        }
       }
     }
   }, [session]);
@@ -514,10 +537,10 @@ export default function Session() {
         {/* Arrived toasts — fixed so pinch-zoom / layout shifts don't displace them */}
         {arrivals.length > 0 && (
           <div className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
-            {arrivals.map(name => (
-              <div key={name} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
+            {arrivals.map(msg => (
+              <div key={msg} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
                 <span className="text-lg">🎉</span>
-                <span>{name} has arrived!</span>
+                <span>{msg}</span>
               </div>
             ))}
           </div>

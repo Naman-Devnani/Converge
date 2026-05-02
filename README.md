@@ -58,8 +58,10 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 | ⏳ **Custom expiry** | Sessions expire in 1–24 h (default 2 h), or 10 min after everyone leaves |
 | 👥 **Participant limit** | Set max 2–50 people per session |
 | 🟢 **Online/offline status** | Participant dot goes grey on disconnect, removed after 30 s grace period |
+| 🏷️ **Host/guest labels** | Each participant card shows their role so everyone knows who created the session |
+| 🚪 **End / Leave session** | Host can end the session for everyone; guests can leave explicitly at any time |
 | 📋 **Session history** | Last 5 sessions saved locally — rejoin with one tap |
-| 📤 **WhatsApp deeplink** | Share link directly to WhatsApp — password always shared separately |
+| 📤 **Native share sheet** | Uses Web Share API on mobile (any app); WhatsApp deeplink fallback on desktop |
 | 🔗 **No install needed** | Web-first — share a link, open in browser, done |
 | 📱 **PWA ready** | Add to Home Screen on iOS and Android |
 | 🌐 **Open source** | Transparent codebase — no dark patterns, no data selling |
@@ -88,8 +90,8 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 1. **Create** — tap "Create Meetup", optionally set a name / password / expiry
 2. **Share** — send the link via WhatsApp or copy it; share the password separately if set
 3. **Consent** — each person approves location sharing (browser prompt)
-4. **Meet** — live map shows everyone moving in real time, chat panel available
-5. **Done** — close the tab, session ends, no trace left
+4. **Meet** — live map shows everyone moving in real time, chat panel available; host can end the session for all, guests can leave at any time
+5. **Done** — close the tab, leave, or end the session — no trace left
 
 ---
 

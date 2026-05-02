@@ -66,9 +66,21 @@ interface MarkersProps {
 
 function Markers({ participants, myId }: MarkersProps) {
   const map = useMap();
-  const markersRef    = useRef<Record<string, L.Marker>>({});
-  const circlesRef    = useRef<Record<string, L.Circle>>({});
-  const midpointRef   = useRef<L.Marker | null>(null);
+  const markersRef      = useRef<Record<string, L.Marker>>({});
+  const circlesRef      = useRef<Record<string, L.Circle>>({});
+  const midpointRef     = useRef<L.Marker | null>(null);
+  const userMovedRef    = useRef(false);
+
+  // Stop auto-fitting once the user manually pans or zooms
+  useEffect(() => {
+    const onInteract = () => { userMovedRef.current = true; };
+    map.on('dragstart', onInteract);
+    map.on('zoomstart', onInteract);
+    return () => {
+      map.off('dragstart', onInteract);
+      map.off('zoomstart', onInteract);
+    };
+  }, [map]);
 
   useEffect(() => {
     const activeIds = new Set(participants.map(p => p.id));
@@ -133,14 +145,16 @@ function Markers({ participants, myId }: MarkersProps) {
       midpointRef.current = null;
     }
 
-    if (latlngs.length === 1) {
-      map.setView(latlngs[0] as L.LatLngExpression, Math.max(map.getZoom(), 15), { animate: true });
-    } else if (latlngs.length > 1) {
-      map.fitBounds(L.latLngBounds(latlngs as L.LatLngExpression[]), {
-        padding: [64, 64],
-        maxZoom: 17,
-        animate: true,
-      });
+    if (!userMovedRef.current) {
+      if (latlngs.length === 1) {
+        map.setView(latlngs[0] as L.LatLngExpression, Math.max(map.getZoom(), 15), { animate: true });
+      } else if (latlngs.length > 1) {
+        map.fitBounds(L.latLngBounds(latlngs as L.LatLngExpression[]), {
+          padding: [64, 64],
+          maxZoom: 17,
+          animate: true,
+        });
+      }
     }
   }, [participants, myId, map]);
 

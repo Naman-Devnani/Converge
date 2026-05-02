@@ -483,9 +483,9 @@ export default function Session() {
           </div>
         )}
 
-        {/* Arrived toasts */}
+        {/* Arrived toasts — fixed so pinch-zoom / layout shifts don't displace them */}
         {arrivals.length > 0 && (
-          <div className="absolute top-4 left-4 right-4 flex flex-col gap-2 z-20 pointer-events-none">
+          <div className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
             {arrivals.map(name => (
               <div key={name} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
                 <span className="text-lg">🎉</span>

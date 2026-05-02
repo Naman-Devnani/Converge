@@ -156,6 +156,19 @@ export default function Session() {
       notifiedRef.current.delete(participantId);
     });
 
+    socket.on('participant-status', ({ participantId, online }: { participantId: string; online: boolean }) => {
+      setSession(prev => {
+        if (!prev?.participants[participantId]) return prev;
+        return {
+          ...prev,
+          participants: {
+            ...prev.participants,
+            [participantId]: { ...prev.participants[participantId], online, lastSeen: Date.now() },
+          },
+        };
+      });
+    });
+
     socket.on('chat-message', ({ message }: { message: ChatMessage }) => {
       setChatMessages(prev => [...prev, message]);
       if (!showChatRef.current) setUnreadCount(c => c + 1);
@@ -178,6 +191,7 @@ export default function Session() {
       socket.off('participant-joined');
       socket.off('participant-moved');
       socket.off('participant-left');
+      socket.off('participant-status');
       socket.off('chat-message');
       socket.off('error');
       if (socket.connected) {

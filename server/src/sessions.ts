@@ -102,6 +102,14 @@ export function removeParticipant(sessionId: string, socketId: string): void {
   if (Object.keys(session.participants).length === 0) session.emptyAt = Date.now();
 }
 
+export function setParticipantOnline(sessionId: string, socketId: string, online: boolean): Participant | null {
+  const session = sessions.get(sessionId);
+  if (!session?.participants[socketId]) return null;
+  session.participants[socketId].online   = online;
+  session.participants[socketId].lastSeen = Date.now();
+  return session.participants[socketId];
+}
+
 export function validatePassword(sessionId: string, password: string): boolean {
   const session = sessions.get(sessionId);
   if (!session) return false;

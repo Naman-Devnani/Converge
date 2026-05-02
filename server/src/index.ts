@@ -9,6 +9,7 @@ import {
   addParticipant,
   updateLocation,
   removeParticipant,
+  setParticipantOnline,
   addMessage,
   validatePassword,
   type SessionConfig,
@@ -25,9 +26,11 @@ const io = new Server(httpServer, {
   cors: isProd ? {} : { origin: '*', methods: ['GET', 'POST'] },
 });
 
-const socketSession   = new Map<string, string>();
+const socketSession    = new Map<string, string>();
 const locationThrottle = new Map<string, number>();
+const offlineTimers    = new Map<string, ReturnType<typeof setTimeout>>();
 const LOCATION_MIN_MS  = 2000;
+const OFFLINE_GRACE_MS = 30_000;
 
 // ── REST ──────────────────────────────────────────────────────────────────────
 
@@ -134,18 +137,37 @@ io.on('connection', (socket) => {
     io.to(sessionId).emit('chat-message', { message });
   });
 
-  function handleLeave() {
+  function handleLeave(immediate: boolean) {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
-    removeParticipant(sessionId, socket.id);
+
     socketSession.delete(socket.id);
     locationThrottle.delete(socket.id);
-    io.to(sessionId).emit('participant-left', { participantId: socket.id });
     socket.leave(sessionId);
+
+    // Cancel any pending offline timer for this socket
+    const existing = offlineTimers.get(socket.id);
+    if (existing) { clearTimeout(existing); offlineTimers.delete(socket.id); }
+
+    if (immediate) {
+      removeParticipant(sessionId, socket.id);
+      io.to(sessionId).emit('participant-left', { participantId: socket.id });
+    } else {
+      // Mark offline, broadcast status, then remove after grace period
+      setParticipantOnline(sessionId, socket.id, false);
+      io.to(sessionId).emit('participant-status', { participantId: socket.id, online: false });
+
+      const timer = setTimeout(() => {
+        removeParticipant(sessionId, socket.id);
+        io.to(sessionId).emit('participant-left', { participantId: socket.id });
+        offlineTimers.delete(socket.id);
+      }, OFFLINE_GRACE_MS);
+      offlineTimers.set(socket.id, timer);
+    }
   }
 
-  socket.on('leave-session', handleLeave);
-  socket.on('disconnect',    handleLeave);
+  socket.on('leave-session', () => handleLeave(true));
+  socket.on('disconnect',    () => handleLeave(false));
 });
 
 // ── Static (production) ───────────────────────────────────────────────────────

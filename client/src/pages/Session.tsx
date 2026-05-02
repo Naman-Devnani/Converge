@@ -402,6 +402,20 @@ export default function Session() {
             </button>
           )}
 
+          {/* Leave session (guests only) */}
+          {session && !amHost && (
+            <button
+              onClick={() => {
+                socket.emit('leave-session');
+                socket.disconnect();
+                navigate('/');
+              }}
+              className="text-xs font-bold px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-slate-700/50"
+            >
+              Leave
+            </button>
+          )}
+
           {/* End session (host only) */}
           {session && amHost && (
             confirmEnd ? (

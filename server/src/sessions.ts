@@ -6,7 +6,8 @@ const COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
 
-const DEFAULT_TTL = 2 * 60 * 60 * 1000;
+const HOUR_MS     = 60 * 60 * 1000;
+const DEFAULT_TTL = 2 * HOUR_MS;       // fallback when no expiryHours provided
 const EMPTY_TTL   = 10 * 60 * 1000;
 const MAX_MESSAGES = 100;
 
@@ -39,7 +40,9 @@ export function getSession(id: string): Session | undefined {
 
 export function getOrCreateSession(id: string, config?: SessionConfig): Session {
   if (sessions.has(id)) return sessions.get(id)!;
-  const ttl = Math.min(Math.max(config?.expiryHours ?? 2, 1), 24) * 60 * 60 * 1000;
+  const ttl = config?.expiryHours
+    ? Math.min(Math.max(config.expiryHours, 1), 24) * HOUR_MS
+    : DEFAULT_TTL;
   const session: Session = {
     id,
     name: (config?.name ?? '').slice(0, 60),

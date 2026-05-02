@@ -27,11 +27,19 @@ function makePickerIcon(color: string) {
   });
 }
 
-interface NominatimResult {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
+// Photon (Komoot) GeoJSON feature
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] }; // [lon, lat]
+  properties: {
+    osm_id:      number;
+    name?:       string;
+    street?:     string;
+    housenumber?: string;
+    city?:       string;
+    state?:      string;
+    country?:    string;
+    postcode?:   string;
+  };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -68,11 +76,11 @@ interface Props {
 
 export default function VenuePicker({ venuePoints, onChange }: Props) {
   const [query,     setQuery]     = useState('');
-  const [results,   setResults]   = useState<NominatimResult[]>([]);
+  const [results,   setResults]   = useState<PhotonFeature[]>([]);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Address search via OSM Nominatim ────────────────────────────────────────
+  // ── Address search via Photon (Komoot) — free, no API key, global ────────────
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q);
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -81,23 +89,34 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
       setSearching(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,
-          { headers: { 'Accept-Language': 'en' } },
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=en`,
         );
-        setResults(await res.json());
+        const data = await res.json();
+        setResults(data.features ?? []);
       } catch { setResults([]); }
       finally { setSearching(false); }
     }, 450);
   }, []);
 
-  const addFromResult = (r: NominatimResult) => {
+  // Build a readable label from Photon properties
+  function photonLabel(p: PhotonFeature['properties']): string {
+    const primary = p.name || (p.street ? `${p.street}${p.housenumber ? ' ' + p.housenumber : ''}` : '');
+    return (primary || 'Venue').slice(0, 40);
+  }
+
+  // Build subtitle line: city / state / country
+  function photonSubtitle(p: PhotonFeature['properties']): string {
+    return [p.city, p.state, p.country].filter(Boolean).join(', ');
+  }
+
+  const addFromResult = (f: PhotonFeature) => {
     if (venuePoints.length >= MAX_VENUES) return;
-    const label = r.display_name.split(',')[0].trim().slice(0, 40) || 'Venue';
+    const [lng, lat] = f.geometry.coordinates;
     onChange([...venuePoints, {
-      id:  crypto.randomUUID(),
-      label,
-      lat: parseFloat(r.lat),
-      lng: parseFloat(r.lon),
+      id:    crypto.randomUUID(),
+      label: photonLabel(f.properties),
+      lat,
+      lng,
     }]);
     setQuery('');
     setResults([]);
@@ -145,18 +164,18 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
         {/* Dropdown results */}
         {results.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-[#1e293b] border border-slate-700 rounded-xl overflow-hidden shadow-2xl z-[9999] max-h-44 overflow-y-auto">
-            {results.map(r => (
+            {results.map((f, i) => (
               <button
-                key={r.place_id}
+                key={`${f.properties.osm_id}-${i}`}
                 type="button"
-                onClick={() => addFromResult(r)}
+                onClick={() => addFromResult(f)}
                 className="w-full text-left px-3 py-2.5 hover:bg-slate-700/70 border-b border-slate-700/50 last:border-0 transition-colors"
               >
                 <span className="font-medium text-white text-xs block truncate">
-                  {r.display_name.split(',')[0]}
+                  {photonLabel(f.properties)}
                 </span>
                 <span className="text-slate-500 text-[11px] block truncate">
-                  {r.display_name.split(',').slice(1, 3).join(',')}
+                  {photonSubtitle(f.properties)}
                 </span>
               </button>
             ))}

@@ -9,10 +9,23 @@ export interface Participant {
   lastUpdate: number | null;
   color: string;
   joinedAt: number;
+  online: boolean;
+  lastSeen: number;
 }
 
 export interface SessionState {
   sessionId: string;
   myId: string;
   participants: Record<string, Participant>;
+  expiresAt: number;
+  sessionName: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  participantId: string;
+  participantName: string;
+  color: string;
+  text: string;
+  timestamp: number;
 }

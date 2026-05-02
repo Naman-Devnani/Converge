@@ -34,9 +34,11 @@ export default function ConsentModal({ isNewSession, onConsent }: Props) {
             Your display name
           </label>
           <input
+            autoFocus
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && name.trim() && onConsent(name.trim(), approxMode)}
             maxLength={32}
             placeholder="How should others see you?"
             className="w-full bg-[#0f172a] border border-slate-700 focus:border-emerald-500 outline-none rounded-xl px-4 py-3 text-white placeholder-slate-600 transition-colors"

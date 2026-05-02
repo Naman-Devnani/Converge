@@ -9,12 +9,27 @@ export interface Participant {
   lastUpdate: number | null;
   color: string;
   joinedAt: number;
+  online: boolean;
+  lastSeen: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  participantId: string;
+  participantName: string;
+  color: string;
+  text: string;
+  timestamp: number;
 }
 
 export interface Session {
   id: string;
+  name: string;
   createdAt: number;
   expiresAt: number;
   participants: Record<string, Participant>;
   emptyAt: number | null;
+  passwordHash: string | null;
+  maxParticipants: number;
+  messages: ChatMessage[];
 }

@@ -1,12 +1,14 @@
-import type { Session, Participant } from './types';
+import { createHash, randomUUID } from 'crypto';
+import type { Session, Participant, ChatMessage } from './types';
 
 const COLORS = [
   '#ef4444', '#3b82f6', '#10b981', '#f59e0b',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
 
-const SESSION_TTL = 2 * 60 * 60 * 1000;   // 2 hours
-const EMPTY_TTL  = 10 * 60 * 1000;        // 10 min after last person leaves
+const DEFAULT_TTL = 2 * 60 * 60 * 1000;
+const EMPTY_TTL   = 10 * 60 * 1000;
+const MAX_MESSAGES = 100;
 
 const sessions = new Map<string, Session>();
 
@@ -19,18 +21,34 @@ setInterval(() => {
   }
 }, 60_000);
 
+export function hashPassword(password: string): string {
+  return createHash('sha256').update(`meetsync:${password}`).digest('hex');
+}
+
+export interface SessionConfig {
+  name?: string;
+  password?: string;
+  expiryHours?: number;
+  maxParticipants?: number;
+}
+
 export function getSession(id: string): Session | undefined {
   return sessions.get(id);
 }
 
-export function getOrCreateSession(id: string): Session {
+export function getOrCreateSession(id: string, config?: SessionConfig): Session {
   if (sessions.has(id)) return sessions.get(id)!;
+  const ttl = Math.min(Math.max(config?.expiryHours ?? 2, 1), 24) * 60 * 60 * 1000;
   const session: Session = {
     id,
+    name: (config?.name ?? '').slice(0, 60),
     createdAt: Date.now(),
-    expiresAt: Date.now() + SESSION_TTL,
+    expiresAt: Date.now() + ttl,
     participants: {},
     emptyAt: null,
+    passwordHash: config?.password ? hashPassword(config.password) : null,
+    maxParticipants: Math.min(Math.max(config?.maxParticipants ?? 20, 2), 50),
+    messages: [],
   };
   sessions.set(id, session);
   return session;
@@ -44,6 +62,7 @@ function nextColor(session: Session): string {
 export function addParticipant(sessionId: string, socketId: string, name: string): Participant | null {
   const session = sessions.get(sessionId);
   if (!session) return null;
+  if (Object.keys(session.participants).length >= session.maxParticipants) return null;
 
   const participant: Participant = {
     id: socketId,
@@ -52,29 +71,27 @@ export function addParticipant(sessionId: string, socketId: string, name: string
     heading: null, speed: null, lastUpdate: null,
     color: nextColor(session),
     joinedAt: Date.now(),
+    online: true,
+    lastSeen: Date.now(),
   };
-
   session.participants[socketId] = participant;
   session.emptyAt = null;
   return participant;
 }
 
 export function updateLocation(
-  sessionId: string,
-  socketId: string,
+  sessionId: string, socketId: string,
   lat: number, lng: number,
-  accuracy: number | null,
-  heading: number | null,
-  speed: number | null,
+  accuracy: number | null, heading: number | null, speed: number | null,
 ): Participant | null {
   const session = sessions.get(sessionId);
   if (!session) return null;
   const p = session.participants[socketId];
   if (!p) return null;
-
   p.lat = lat; p.lng = lng;
   p.accuracy = accuracy; p.heading = heading; p.speed = speed;
   p.lastUpdate = Date.now();
+  p.lastSeen = Date.now();
   return p;
 }
 
@@ -82,7 +99,24 @@ export function removeParticipant(sessionId: string, socketId: string): void {
   const session = sessions.get(sessionId);
   if (!session) return;
   delete session.participants[socketId];
-  if (Object.keys(session.participants).length === 0) {
-    session.emptyAt = Date.now();
-  }
+  if (Object.keys(session.participants).length === 0) session.emptyAt = Date.now();
+}
+
+export function validatePassword(sessionId: string, password: string): boolean {
+  const session = sessions.get(sessionId);
+  if (!session) return false;
+  if (!session.passwordHash) return true;
+  return session.passwordHash === hashPassword(password);
+}
+
+export function addMessage(
+  sessionId: string,
+  msg: Omit<ChatMessage, 'id' | 'timestamp'>,
+): ChatMessage | null {
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+  const message: ChatMessage = { ...msg, id: randomUUID(), timestamp: Date.now() };
+  session.messages.push(message);
+  if (session.messages.length > MAX_MESSAGES) session.messages.shift();
+  return message;
 }

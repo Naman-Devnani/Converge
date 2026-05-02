@@ -9,9 +9,12 @@ import {
   addParticipant,
   updateLocation,
   removeParticipant,
+  addMessage,
+  validatePassword,
+  type SessionConfig,
 } from './sessions';
 
-const app = express();
+const app    = express();
 const isProd = process.env.NODE_ENV === 'production';
 
 app.use(cors({ origin: isProd ? false : '*' }));
@@ -22,8 +25,9 @@ const io = new Server(httpServer, {
   cors: isProd ? {} : { origin: '*', methods: ['GET', 'POST'] },
 });
 
-// socket.id → sessionId
-const socketSession = new Map<string, string>();
+const socketSession   = new Map<string, string>();
+const locationThrottle = new Map<string, number>();
+const LOCATION_MIN_MS  = 2000;
 
 // ── REST ──────────────────────────────────────────────────────────────────────
 
@@ -33,22 +37,45 @@ app.get('/api/sessions/:id', (req, res) => {
   const session = getSession(req.params.id);
   if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
   res.json({
-    id: session.id,
+    id:               session.id,
+    name:             session.name,
     participantCount: Object.keys(session.participants).length,
-    createdAt: session.createdAt,
-    expiresAt: session.expiresAt,
+    createdAt:        session.createdAt,
+    expiresAt:        session.expiresAt,
+    hasPassword:      session.passwordHash !== null,
+    maxParticipants:  session.maxParticipants,
   });
 });
 
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  socket.on('join-session', ({ sessionId, name }: { sessionId: string; name: string }) => {
+
+  socket.on('join-session', ({
+    sessionId, name, password, config,
+  }: {
+    sessionId: string;
+    name: string;
+    password?: string;
+    config?: SessionConfig;
+  }) => {
     if (!sessionId || typeof sessionId !== 'string') {
-      socket.emit('error', { message: 'Invalid session ID' });
-      return;
+      socket.emit('error', { message: 'Invalid session ID' }); return;
     }
-    const session     = getOrCreateSession(sessionId);
+
+    const session = getOrCreateSession(sessionId, config);
+
+    // Password validation (guests only — host passes config)
+    if (session.passwordHash && !config) {
+      if (!validatePassword(sessionId, password ?? '')) {
+        socket.emit('error', { message: 'Incorrect password', code: 'WRONG_PASSWORD' }); return;
+      }
+    }
+
+    if (Object.keys(session.participants).length >= session.maxParticipants) {
+      socket.emit('error', { message: 'Session is full', code: 'SESSION_FULL' }); return;
+    }
+
     const participant = addParticipant(sessionId, socket.id, name);
     if (!participant) { socket.emit('error', { message: 'Could not join session' }); return; }
 
@@ -57,17 +84,27 @@ io.on('connection', (socket) => {
 
     socket.emit('session-joined', {
       sessionId,
-      myId: socket.id,
+      myId:        socket.id,
       participants: Object.values(session.participants),
+      expiresAt:   session.expiresAt,
+      sessionName: session.name,
+      messages:    session.messages,
     });
+
     socket.to(sessionId).emit('participant-joined', { participant });
   });
 
-  socket.on('location-update', ({
-    lat, lng, accuracy, heading, speed,
-  }: { lat: number; lng: number; accuracy?: number; heading?: number; speed?: number }) => {
+  socket.on('location-update', ({ lat, lng, accuracy, heading, speed }: {
+    lat: number; lng: number;
+    accuracy?: number; heading?: number; speed?: number;
+  }) => {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
+
+    const last = locationThrottle.get(socket.id) ?? 0;
+    if (Date.now() - last < LOCATION_MIN_MS) return;
+    locationThrottle.set(socket.id, Date.now());
+
     const participant = updateLocation(
       sessionId, socket.id, lat, lng,
       accuracy ?? null, heading ?? null, speed ?? null,
@@ -76,32 +113,50 @@ io.on('connection', (socket) => {
     io.to(sessionId).emit('participant-moved', { participant });
   });
 
+  socket.on('chat-message', ({ text }: { text: string }) => {
+    const sessionId = socketSession.get(socket.id);
+    if (!sessionId) return;
+    const session = getSession(sessionId);
+    if (!session) return;
+    const participant = session.participants[socket.id];
+    if (!participant) return;
+
+    const trimmed = text.trim().slice(0, 200);
+    if (!trimmed) return;
+
+    const message = addMessage(sessionId, {
+      participantId:   socket.id,
+      participantName: participant.name,
+      color:           participant.color,
+      text:            trimmed,
+    });
+    if (!message) return;
+    io.to(sessionId).emit('chat-message', { message });
+  });
+
   function handleLeave() {
     const sessionId = socketSession.get(socket.id);
     if (!sessionId) return;
     removeParticipant(sessionId, socket.id);
     socketSession.delete(socket.id);
+    locationThrottle.delete(socket.id);
     io.to(sessionId).emit('participant-left', { participantId: socket.id });
     socket.leave(sessionId);
   }
 
   socket.on('leave-session', handleLeave);
-  socket.on('disconnect', handleLeave);
+  socket.on('disconnect',    handleLeave);
 });
 
-// ── Static client (production) ────────────────────────────────────────────────
-// __dirname = server/dist in production after tsc build
+// ── Static (production) ───────────────────────────────────────────────────────
+
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
+  app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-
 const PORT = process.env.PORT ?? 3001;
-httpServer.listen(PORT, () => {
-  console.log(`MeetSync server → http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`);
-});
+httpServer.listen(PORT, () =>
+  console.log(`MeetSync server → http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`),
+);

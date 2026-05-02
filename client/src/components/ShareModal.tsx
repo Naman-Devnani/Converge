@@ -22,10 +22,24 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
     }
   }
 
+  async function shareViaSystem() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Join my MeetSync meetup', url: sessionUrl });
+      } catch {
+        // user cancelled — do nothing
+      }
+    } else {
+      copy(sessionUrl, 'link');
+    }
+  }
+
   function shareViaWhatsApp() {
     const msg = encodeURIComponent(`Join my MeetSync meetup → ${sessionUrl}`);
     window.open(`https://wa.me/?text=${msg}`, '_blank');
   }
+
+  const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -50,12 +64,21 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
           >
             {copiedLink ? '✓ Copied!' : '📋 Copy link'}
           </button>
-          <button
-            onClick={shareViaWhatsApp}
-            className="flex-1 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20c45a] text-white font-semibold text-sm transition-colors"
-          >
-            WhatsApp
-          </button>
+          {hasNativeShare ? (
+            <button
+              onClick={shareViaSystem}
+              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors"
+            >
+              Share ↗
+            </button>
+          ) : (
+            <button
+              onClick={shareViaWhatsApp}
+              className="flex-1 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20c45a] text-white font-semibold text-sm transition-colors"
+            >
+              WhatsApp
+            </button>
+          )}
         </div>
 
         {/* Password section */}

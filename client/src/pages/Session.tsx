@@ -175,7 +175,7 @@ export default function Session() {
     });
 
     socket.on('error', ({ message }: { message: string }) => {
-      if (message === 'Wrong password') {
+      if (message === 'Incorrect password') {
         setPasswordError('Wrong password. Try again.');
         setShowConsent(false);
         setShowPasswordModal(true);

@@ -55,14 +55,14 @@ export default function ConsentModal({ isNewSession, onConsent }: Props) {
           <button
             type="button"
             onClick={() => setApproxMode(v => !v)}
-            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ml-3 ${
+            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ml-3 overflow-hidden ${
               approxMode ? 'bg-emerald-500' : 'bg-slate-700'
             }`}
             aria-label="Toggle approximate location"
           >
             <span
-              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                approxMode ? 'translate-x-6' : 'translate-x-0.5'
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                approxMode ? 'translate-x-[26px]' : 'translate-x-0'
               }`}
             />
           </button>

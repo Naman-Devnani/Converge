@@ -25,7 +25,7 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
   async function shareViaSystem() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Join my MeetSync meetup', url: sessionUrl });
+        await navigator.share({ title: 'Join my Converge meetup', url: sessionUrl });
       } catch {
         // user cancelled — do nothing
       }
@@ -35,7 +35,7 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
   }
 
   function shareViaWhatsApp() {
-    const msg = encodeURIComponent(`Join my MeetSync meetup → ${sessionUrl}`);
+    const msg = encodeURIComponent(`Join my Converge meetup → ${sessionUrl}`);
     // QUAL-03: Add noopener,noreferrer to prevent opener access.
     window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener,noreferrer');
   }

@@ -396,5 +396,5 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   throw new Error(`Invalid PORT: ${process.env.PORT}`);
 }
 httpServer.listen(PORT, () =>
-  console.log(`MeetSync server → http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`),
+  console.log(`Converge server → http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`),
 );

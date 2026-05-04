@@ -4,7 +4,7 @@ export interface HistoryEntry {
   joinedAt:    number;
 }
 
-const KEY         = 'meetsync_history';
+const KEY         = 'converge_history';
 const MAX_ENTRIES = 5;
 
 // M-8/L-5: Same format used by the server — only alphanumeric + hyphen/underscore, 6–64 chars.

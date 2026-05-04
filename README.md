@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="client/public/icons/icon.svg" width="80" height="80" alt="MeetSync Logo" />
+<img src="client/public/icons/icon.svg" width="80" height="80" alt="Converge Logo" />
 
-# MeetSync
+# Converge
 
 ### Meet people, not complications.
 
@@ -14,7 +14,7 @@
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io)](https://socket.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
-[Live Demo](https://meetsync-4udi.onrender.com) · [Report Bug](https://github.com/Naman-Devnani/MeetSync/issues) · [Request Feature](https://github.com/Naman-Devnani/MeetSync/issues)
+[Live Demo](https://meetsync-4udi.onrender.com) · [Report Bug](https://github.com/Naman-Devnani/Converge/issues) · [Request Feature](https://github.com/Naman-Devnani/Converge/issues)
 
 </div>
 
@@ -147,8 +147,8 @@ CartoDB dark map tiles
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/Naman-Devnani/MeetSync.git
-cd MeetSync
+git clone https://github.com/Naman-Devnani/Converge.git
+cd Converge
 
 # 2. Install all dependencies (workspaces)
 npm install
@@ -179,7 +179,7 @@ This repo includes a `render.yaml` for one-click deployment.
 1. Push this repo to GitHub
 2. Sign up at [render.com](https://render.com) (no credit card required)
 3. Click **New +** → **Blueprint**
-4. Connect your GitHub account → select `MeetSync`
+4. Connect your GitHub account → select `Converge`
 5. Click **Apply**
 
 Render will automatically:
@@ -205,7 +205,7 @@ No secrets required. The only env vars used at deploy time:
 ## Project Structure
 
 ```
-MeetSync/
+Converge/
 ├── client/                    # React frontend (Vite)
 │   ├── public/
 │   │   ├── manifest.json      # PWA manifest
@@ -245,7 +245,7 @@ MeetSync/
 
 ## Privacy Design
 
-MeetSync was built with privacy as a core constraint, not an afterthought.
+Converge was built with privacy as a core constraint, not an afterthought.
 
 - **Mutual consent** — nobody can see you without your explicit approval
 - **No accounts** — no email, no password, no profile

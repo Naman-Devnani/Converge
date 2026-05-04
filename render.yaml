@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: meetsync
+    name: converge
     runtime: node
     region: oregon
     plan: free

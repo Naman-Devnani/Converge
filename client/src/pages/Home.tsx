@@ -71,7 +71,7 @@ export default function Home() {
               <circle cx="12" cy="9" r="2.5"/>
             </svg>
           </div>
-          <h1 className="text-5xl font-extrabold text-white tracking-tight">MeetSync</h1>
+          <h1 className="text-5xl font-extrabold text-white tracking-tight">Converge</h1>
           <p className="text-slate-400 mt-3 text-lg">Meet people, not complications.</p>
         </div>
 
@@ -270,7 +270,7 @@ export default function Home() {
         </div>
 
         <p className="text-center text-slate-600 text-xs mt-8">
-          MeetSync · Privacy-first open-source meetup coordination
+          Converge · Privacy-first open-source meetup coordination
         </p>
       </div>
     </div>

@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea or improvement for MeetSync
+about: Suggest an idea or improvement for Converge
 title: '[Feature] '
 labels: enhancement
 assignees: ''
@@ -17,8 +17,8 @@ A clear and concise description of what you want to happen.
 ## Alternatives Considered
 Describe any alternative solutions or features you've considered.
 
-## Does this align with MeetSync's privacy principles?
-MeetSync is built around mutual consent, no persistent storage, and no accounts.
+## Does this align with Converge's privacy principles?
+Converge is built around mutual consent, no persistent storage, and no accounts.
 Does your feature request respect these principles? (Yes / No / Needs discussion)
 
 ## Additional Context

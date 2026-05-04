@@ -1,6 +1,6 @@
-# Contributing to MeetSync
+# Contributing to Converge
 
-Thanks for your interest in contributing! MeetSync is an open-source project built for people, not profit. Every contribution — bug fixes, features, docs, or feedback — is welcome.
+Thanks for your interest in contributing! Converge is an open-source project built for people, not profit. Every contribution — bug fixes, features, docs, or feedback — is welcome.
 
 ## Before You Start
 
@@ -12,8 +12,8 @@ For small fixes (typos, minor bugs), you can open a PR directly.
 
 ```bash
 # 1. Fork the repo on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/MeetSync.git
-cd MeetSync
+git clone https://github.com/YOUR_USERNAME/Converge.git
+cd Converge
 
 # 2. Install all dependencies (npm workspaces)
 npm install
@@ -32,7 +32,7 @@ Open **two or more browser tabs** at `http://localhost:5173` to simulate multipl
 ## Project Structure
 
 ```
-MeetSync/
+Converge/
 ├── client/src/
 │   ├── pages/        # Home.tsx, Session.tsx
 │   ├── components/   # Map, Chat, Modals, etc.
@@ -45,7 +45,7 @@ MeetSync/
 ## Guidelines
 
 ### Privacy First
-MeetSync's core promise is **mutual consent, no persistence, no accounts**. Any contribution must respect this:
+Converge's core promise is **mutual consent, no persistence, no accounts**. Any contribution must respect this:
 - Don't add databases or persistent user storage
 - Don't add third-party analytics or tracking
 - Don't require login or account creation
@@ -80,7 +80,7 @@ Use the **Bug Report** issue template. Include your browser, OS, and steps to re
 
 ## Suggesting Features
 
-Use the **Feature Request** issue template. Check that your idea aligns with MeetSync's privacy principles before submitting.
+Use the **Feature Request** issue template. Check that your idea aligns with Converge's privacy principles before submitting.
 
 ## License
 

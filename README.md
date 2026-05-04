@@ -54,10 +54,10 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 | 📍 **Venue mode** | Host can pre-set up to 5 named meetup points (searchable via Photon/OSM) before the session starts; venue pins appear on everyone's map |
 | 💬 **In-session chat** | Group chat panel with unread badge — no phone numbers needed |
 | 🔒 **Optional password** | Password-protect sessions; memorable generated passwords (e.g. `amber-peak-44`) |
-| 🌫️ **Approximate mode** | Optional ±500 m location blur for extra privacy |
+| 🌫️ **Approximate mode** | Optional ±500 m grid-snap blur; a per-session random jitter prevents cross-session re-identification even when two people share a location |
 | 🎉 **Arrived alerts** | Notification + haptic when someone reaches within 80 m of you |
 | ⏳ **Custom expiry** | Sessions expire in 1–24 h (default 2 h), or 10 min after everyone leaves |
-| 👥 **Participant limit** | Set max 2–50 people per session |
+| 👥 **Participant limit** | Set max 2–50 people per session (default 20) |
 | 🟢 **Online/offline status** | Participant dot goes grey on disconnect, removed after 30 s grace period |
 | 🏷️ **Host/guest labels** | Each participant card shows their role so everyone knows who created the session |
 | 🚪 **End / Leave session** | Host can end the session for everyone; guests can leave explicitly at any time |
@@ -120,8 +120,8 @@ CartoDB dark map tiles
 
 ### Prerequisites
 
-- Node.js 18+
-- npm 9+
+- Node.js 20+ (deployment pins 20.11.0 via `render.yaml`)
+- npm (bundled with Node.js)
 
 ### Local Development
 
@@ -141,6 +141,8 @@ npm run dev
 |---|---|
 | Client (React + Vite) | http://localhost:5173 |
 | Server (API + Sockets) | http://localhost:3001 |
+
+> **Note:** Vite automatically proxies `/api` requests from `:5173` to `:3001` (see `client/vite.config.ts`), so you never need to hardcode the server URL in the frontend.
 
 ### Test with multiple people locally
 
@@ -170,12 +172,13 @@ Render will automatically:
 
 ### Environment Variables
 
-No secrets required. The only env vars set at deploy time:
+No secrets required. The only env vars used at deploy time:
 
-| Variable | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `PORT` | Set automatically by Render |
+| Variable | Value | Notes |
+|---|---|---|
+| `NODE_ENV` | `production` | Set in `render.yaml` |
+| `PORT` | Set automatically by Render | Server binds to this port |
+| `ALLOWED_ORIGIN` | e.g. `https://your-app.onrender.com` | Optional. Comma-separated list of allowed CORS origins in production. Leave unset when the client and server are served from the same origin (the default Render setup — Express serves the built client). Required only if you deploy the frontend and backend on separate domains. |
 
 ---
 
@@ -200,10 +203,11 @@ MeetSync/
 │       │   ├── VenuePicker.tsx     # Host venue search + pin management
 │       │   └── ParticipantList.tsx # Distance, ETA, online status cards
 │       ├── utils/
-│       │   ├── geo.ts         # Haversine, ETA, privacy blur
-│       │   ├── password.ts    # Memorable password generator
-│       │   ├── sanitize.ts    # Input sanitisation helpers
-│       │   └── history.ts     # LocalStorage session history
+│       │   ├── geo.ts             # Haversine distance, ETA, privacy blur
+│       │   ├── password.ts        # Memorable password generator
+│       │   ├── sanitize.ts        # Input sanitisation helpers
+│       │   ├── history.ts         # LocalStorage session history
+│       │   └── leaflet-setup.ts   # Leaflet default-icon fix (imported once at app root)
 │       ├── socket.ts          # Socket.io client singleton
 │       └── types.ts           # Shared TypeScript types
 │
@@ -227,7 +231,7 @@ MeetSync was built with privacy as a core constraint, not an afterthought.
 - **No accounts** — no email, no password, no profile
 - **No persistent storage** — locations exist only in RAM during the session
 - **Auto-expiry** — sessions self-destruct after 1–24 h (default 2 h) or 10 min of inactivity
-- **Approximate mode** — opt-in ±500 m grid snap to share area, not exact position
+- **Approximate mode** — opt-in ±500 m grid snap with per-session random jitter; shares your area, not your exact position, and prevents cross-session location correlation
 - **Password separation** — session passwords are never included in the shareable link or WhatsApp message; they must be shared through a separate channel
 - **Open source** — the entire codebase is auditable. No hidden telemetry.
 

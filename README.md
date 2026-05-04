@@ -14,7 +14,7 @@
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io)](https://socket.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
-[Live Demo](https://meetsync-4udi.onrender.com) · [Report Bug](https://github.com/Naman-Devnani/Converge/issues) · [Request Feature](https://github.com/Naman-Devnani/Converge/issues)
+[Live Demo](https://converge-xhhc.onrender.com) · [Report Bug](https://github.com/Naman-Devnani/Converge/issues) · [Request Feature](https://github.com/Naman-Devnani/Converge/issues)
 
 </div>
 

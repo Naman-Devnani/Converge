@@ -27,7 +27,7 @@ If applicable, add screenshots to help explain the problem.
 - **Device:** (e.g. iPhone 14, Desktop)
 - **OS:** (e.g. iOS 17, Windows 11, macOS 14)
 - **Browser:** (e.g. Chrome 124, Safari 17)
-- **Converge URL:** (e.g. https://converge.onrender.com or localhost)
+- **Converge URL:** (e.g. https://converge-xhhc.onrender.com or localhost)
 
 ## Additional Context
 Add any other context about the problem here.

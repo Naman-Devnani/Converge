@@ -51,6 +51,7 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 | 🗺️ **Mutual live tracking** | Everyone in the session sees each other's real-time position |
 | ⏱️ **Smart ETA** | Live distance and estimated time to meetup for each participant |
 | 🏁 **Venue midpoint** | "Meet here" marker auto-placed at the centroid of all participants |
+| 📍 **Venue mode** | Host can pre-set up to 5 named meetup points (searchable via Photon/OSM) before the session starts; venue pins appear on everyone's map |
 | 💬 **In-session chat** | Group chat panel with unread badge — no phone numbers needed |
 | 🔒 **Optional password** | Password-protect sessions; memorable generated passwords (e.g. `amber-peak-44`) |
 | 🌫️ **Approximate mode** | Optional ±500 m location blur for extra privacy |
@@ -196,10 +197,12 @@ MeetSync/
 │       │   ├── PasswordModal.tsx   # Guest password entry
 │       │   ├── ChatPanel.tsx       # In-session group chat
 │       │   ├── ShareModal.tsx      # Copy link + password, WhatsApp share
+│       │   ├── VenuePicker.tsx     # Host venue search + pin management
 │       │   └── ParticipantList.tsx # Distance, ETA, online status cards
 │       ├── utils/
 │       │   ├── geo.ts         # Haversine, ETA, privacy blur
 │       │   ├── password.ts    # Memorable password generator
+│       │   ├── sanitize.ts    # Input sanitisation helpers
 │       │   └── history.ts     # LocalStorage session history
 │       ├── socket.ts          # Socket.io client singleton
 │       └── types.ts           # Shared TypeScript types

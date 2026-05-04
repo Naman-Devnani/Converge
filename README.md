@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="client/public/icons/icon.svg" width="80" height="80" alt="Converge Logo" />
+<img src="client/public/icons/icon.png" width="80" height="80" alt="Converge Logo" />
 
 # Converge
 

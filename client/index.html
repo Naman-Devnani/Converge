@@ -9,6 +9,10 @@
          The map container itself uses touch-action:pan-x pan-y via CSS to
          capture swipe without blocking browser pinch-to-zoom globally. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- QUAL-05: Best-effort Content-Security-Policy. unsafe-inline for scripts is required
+         because Vite injects inline scripts in dev mode. Use nonces in production.
+         connect-src includes http://localhost:* for socket.io polling transport in dev. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: http://localhost:* https://photon.komoot.io https://*.basemaps.cartocdn.com; img-src * data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;">
     <meta name="theme-color" content="#10b981" />
     <meta name="description" content="Privacy-first mutual live location sharing for real-world meetups" />
     <meta name="mobile-web-app-capable" content="yes" />

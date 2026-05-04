@@ -15,10 +15,21 @@ function formatTime(ts: number): string {
 export default function ChatPanel({ messages, myId, onClose }: Props) {
   const [text, setText]     = useState('');
   const bottomRef           = useRef<HTMLDivElement>(null);
+  const inputRef            = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // A11Y-03: Move focus to input when panel opens.
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // A11Y-04: Close on Escape key globally.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
 
   function send() {
     const trimmed = text.trim();
@@ -29,17 +40,25 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[1500] flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      {/* A11Y-04: Backdrop with keyboard handler so Escape/Enter closes the panel */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => (e.key === 'Escape' || e.key === 'Enter') && onClose()}
+        aria-label="Close chat"
+      />
 
+      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
       {/* Panel — slides up from bottom, covers ~70% of screen */}
-      <div className="relative mt-auto bg-[#1e293b] rounded-t-3xl flex flex-col shadow-2xl" style={{ maxHeight: '72vh' }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="chat-panel-title" className="relative mt-auto bg-[#1e293b] rounded-t-3xl flex flex-col shadow-2xl" style={{ maxHeight: '72vh' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xl">💬</span>
-            <span className="font-bold text-white">Chat</span>
+            <span id="chat-panel-title" className="font-bold text-white">Chat</span>
             {messages.length > 0 && (
               <span className="text-xs text-slate-500">{messages.length} message{messages.length !== 1 ? 's' : ''}</span>
             )}
@@ -86,6 +105,7 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
         {/* Input */}
         <div className="flex items-center gap-2 px-4 py-3 border-t border-slate-700/50 flex-shrink-0">
           <input
+            ref={inputRef}
             type="text"
             value={text}
             onChange={e => setText(e.target.value)}

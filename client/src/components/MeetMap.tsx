@@ -4,17 +4,8 @@ import L from 'leaflet';
 import type { Participant, VenuePoint } from '../types';
 import { VENUE_COLORS } from './VenuePicker';
 import '../utils/leaflet-setup'; // N-2: shared icon fix
-
-// H-1: Validate that a color string is a safe 6-digit hex before injecting into HTML.
-// Falls back to a neutral grey so a bad value never breaks rendering.
-const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-function safeHexColor(color: string, fallback = '#888888'): string {
-  return HEX_COLOR_RE.test(color) ? color : fallback;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// SEC-08: Import shared sanitization utilities.
+import { safeHexColor, escapeHtml } from '../utils/sanitize';
 
 function makeIcon(color: string, name: string, isMe: boolean) {
   const size      = isMe ? 22 : 18;
@@ -95,6 +86,8 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
   const circlesRef      = useRef<Record<string, L.Circle>>(Object.create(null));
   const midpointRef     = useRef<L.Marker | null>(null);
   const venueMarkersRef = useRef<Record<string, L.Marker>>(Object.create(null));
+  // PERF-06: Cache divIcon instances to avoid regenerating on every render.
+  const iconCacheRef    = useRef<Record<string, L.DivIcon>>(Object.create(null));
   const userMovedRef = useRef(false);
   // skipZoomRef is set to true immediately before any programmatic setView/fitBounds
   // call so the resulting zoomstart event is not mistaken for a user interaction.
@@ -129,6 +122,8 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
       if (!activeIds.has(id)) {
         venueMarkersRef.current[id].remove();
         delete venueMarkersRef.current[id];
+        // PERF-06: Clear cached icon for removed venue.
+        delete iconCacheRef.current[`venue:${id}`];
       }
     }
 
@@ -136,14 +131,20 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
     venuePoints.forEach((vp, i) => {
       const pos: L.LatLngExpression = [vp.lat, vp.lng];
       const color = VENUE_COLORS[i % VENUE_COLORS.length];
+      // PERF-06: Cache venue icon by id:label:color key.
+      const venueIconKey = `venue:${vp.id}:${vp.label}:${color}`;
+      if (!iconCacheRef.current[venueIconKey]) {
+        iconCacheRef.current[venueIconKey] = makeVenueIcon(vp.label, color);
+      }
+      const venueIcon = iconCacheRef.current[venueIconKey];
       if (!venueMarkersRef.current[vp.id]) {
         venueMarkersRef.current[vp.id] = L.marker(pos, {
-          icon: makeVenueIcon(vp.label, color),
+          icon: venueIcon,
           zIndexOffset: 500,
         }).addTo(map);
       } else {
         venueMarkersRef.current[vp.id].setLatLng(pos);
-        venueMarkersRef.current[vp.id].setIcon(makeVenueIcon(vp.label, color));
+        venueMarkersRef.current[vp.id].setIcon(venueIcon);
         // Re-add if detached (e.g. React StrictMode double-invoke removes it via cleanup)
         venueMarkersRef.current[vp.id].addTo(map);
       }
@@ -160,6 +161,10 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
         delete markersRef.current[id];
         circlesRef.current[id]?.remove();
         delete circlesRef.current[id];
+        // PERF-06: Clear cached icon for removed participant.
+        for (const key of Object.keys(iconCacheRef.current)) {
+          if (key.startsWith(`p:${id}:`)) delete iconCacheRef.current[key];
+        }
       }
     }
 
@@ -174,14 +179,21 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
       latlngs.push(pos);
       const isMe = p.id === myId;
 
+      // PERF-06: Cache participant icons by id:color:name:isMe key.
+      const iconKey = `p:${p.id}:${p.color}:${p.name}:${isMe}`;
+      if (!iconCacheRef.current[iconKey]) {
+        iconCacheRef.current[iconKey] = makeIcon(p.color, p.name, isMe);
+      }
+      const icon = iconCacheRef.current[iconKey];
+
       if (!markersRef.current[p.id]) {
         markersRef.current[p.id] = L.marker(pos, {
-          icon: makeIcon(p.color, p.name, isMe),
+          icon,
           zIndexOffset: isMe ? 1000 : 0,
         }).addTo(map);
       } else {
         markersRef.current[p.id].setLatLng(pos);
-        markersRef.current[p.id].setIcon(makeIcon(p.color, p.name, isMe));
+        markersRef.current[p.id].setIcon(icon);
         markersRef.current[p.id].addTo(map);
       }
 
@@ -203,8 +215,9 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
 
     // Auto-centroid "Meet here" — only when no venue points set and 2+ people located
     if (venuePoints.length === 0 && located.length >= 2) {
-      const avgLat = located.reduce((s, p) => s + (p.lat ?? 0), 0) / located.length;
-      const avgLng = located.reduce((s, p) => s + (p.lng ?? 0), 0) / located.length;
+      // COR-09: Use non-null assertion — located is already filtered to p.lat !== null.
+      const avgLat = located.reduce((s, p) => s + p.lat!, 0) / located.length;
+      const avgLng = located.reduce((s, p) => s + p.lng!, 0) / located.length;
       const midPos: L.LatLngExpression = [avgLat, avgLng];
       if (!midpointRef.current) {
         midpointRef.current = L.marker(midPos, {
@@ -258,14 +271,17 @@ function ZoomControls() {
   const map = useMap();
   return (
     <div className="absolute right-4 top-4 flex flex-col gap-1 z-[1000]">
+      {/* A11Y-01: Explicit aria-labels for screen reader users */}
       <button
         onClick={() => map.zoomIn()}
+        aria-label="Zoom in"
         className="w-9 h-9 bg-[#1e293b]/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center text-lg font-bold hover:bg-[#334155] transition-colors"
       >
         +
       </button>
       <button
         onClick={() => map.zoomOut()}
+        aria-label="Zoom out"
         className="w-9 h-9 bg-[#1e293b]/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center text-lg font-bold hover:bg-[#334155] transition-colors"
       >
         −
@@ -282,6 +298,9 @@ interface Props {
 
 export default function MeetMap({ participants, myId, venuePoints }: Props) {
   return (
+    // A11Y-02: aria-hidden so screen readers skip the map and use ParticipantList instead.
+    <div aria-hidden="true" style={{ height: '100%', width: '100%' }}>
+      <p className="sr-only">Map view — participant list below provides accessible location information.</p>
     <MapContainer
       center={[20, 0]}
       zoom={3}
@@ -297,5 +316,6 @@ export default function MeetMap({ participants, myId, venuePoints }: Props) {
       <Markers participants={participants} myId={myId} venuePoints={venuePoints} />
       <ZoomControls />
     </MapContainer>
+    </div>
   );
 }

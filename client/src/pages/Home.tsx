@@ -6,6 +6,7 @@ import VenuePicker from '../components/VenuePicker';
 import type { VenuePoint } from '../types';
 
 function genSessionId(): string {
+  // QUAL-01: Entropy note — 12 hex chars from UUID = 48 bits, intentional for short readable IDs.
   return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 }
 
@@ -131,8 +132,10 @@ export default function Home() {
                     placeholder="Leave blank for open session"
                     className="w-full bg-[#0f172a] border border-slate-700 focus:border-emerald-500 outline-none rounded-xl px-3 py-2.5 text-white placeholder-slate-600 text-sm pr-9 transition-colors"
                   />
+                  {/* A11Y-07: aria-label for password visibility toggle */}
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(v => !v)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                   >
@@ -191,8 +194,11 @@ export default function Home() {
                   </label>
                   <p className="text-[11px] text-slate-600 mt-0.5">Pre-set one or more meetup points</p>
                 </div>
+                {/* A11Y-06: aria-label and aria-pressed for venue mode toggle */}
                 <button
                   type="button"
+                  aria-label="Toggle venue mode"
+                  aria-pressed={venueMode}
                   onClick={() => { setVenueMode(v => !v); if (venueMode) setVenuePoints([]); }}
                   className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${venueMode ? 'bg-emerald-500' : 'bg-slate-700'}`}
                 >

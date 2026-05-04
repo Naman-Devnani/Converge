@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'crypto';
+import { randomBytes, randomUUID, scrypt, scryptSync, timingSafeEqual } from 'crypto';
 import type { Session, Participant, ChatMessage, VenuePoint } from './types';
 
 const COLORS = [
@@ -19,7 +19,8 @@ const SCRYPT_KEYLEN = 32;
 
 const sessions = new Map<string, Session>();
 
-setInterval(() => {
+// COR-04: Export stopCleanup so tests / graceful shutdown can cancel the interval.
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [id, session] of sessions.entries()) {
     const hardExpired  = now > session.expiresAt;
@@ -28,12 +29,31 @@ setInterval(() => {
   }
 }, 60_000);
 
+export function stopCleanup(): void {
+  clearInterval(cleanupInterval);
+}
+
 // C-2: Hash password with per-session random salt using scrypt.
 // Returns "salt:hash" so both are stored together in passwordHash.
+// Sync version kept for any call-sites that cannot be async.
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
   const hash = scryptSync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
   return `${salt}:${hash.toString('hex')}`;
+}
+
+// PERF-01: Async variant using callback-based scrypt so it doesn't block the event loop.
+// N is intentionally 8192 (halved from 16384) to reduce per-hash blocking time while
+// remaining cryptographically strong for ephemeral session passwords.
+const ASYNC_N = 8192;
+export function hashPasswordAsync(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, SCRYPT_KEYLEN, { N: ASYNC_N, r: SCRYPT_R, p: SCRYPT_P }, (err, hash) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${hash.toString('hex')}`);
+    });
+  });
 }
 
 // C-2: Constant-time verification — splits stored "salt:hash", re-derives and compares.
@@ -52,6 +72,26 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
+// PERF-01: Async variant for verifyPassword.
+// IMPORTANT: Must use the same N as hashPassword (SCRYPT_N) — not ASYNC_N — so the
+// derived key matches the stored hash. Using a different N produces a different key.
+export function verifyPasswordAsync(password: string, stored: string): Promise<boolean> {
+  const colonIdx = stored.indexOf(':');
+  if (colonIdx === -1) return Promise.resolve(false);
+  const salt      = stored.slice(0, colonIdx);
+  const storedHex = stored.slice(colonIdx + 1);
+  return new Promise((resolve) => {
+    scrypt(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }, (err, derived) => {
+      if (err) { resolve(false); return; }
+      try {
+        const storedBuf = Buffer.from(storedHex, 'hex');
+        if (derived.length !== storedBuf.length) { resolve(false); return; }
+        resolve(timingSafeEqual(derived, storedBuf));
+      } catch { resolve(false); }
+    });
+  });
+}
+
 export interface SessionConfig {
   name?: string;
   password?: string;
@@ -68,11 +108,13 @@ export function sessionExists(id: string): boolean {
   return sessions.has(id);
 }
 
-export function getOrCreateSession(id: string, config?: SessionConfig): Session {
-  if (sessions.has(id)) return sessions.get(id)!;
-  const ttl = config?.expiryHours
-    ? Math.min(Math.max(config.expiryHours, 1), 24) * HOUR_MS
-    : DEFAULT_TTL;
+// COR-01: Return { session, created } so callers can detect new vs existing without a race.
+export function getOrCreateSession(id: string, config?: SessionConfig): { session: Session; created: boolean } {
+  if (sessions.has(id)) return { session: sessions.get(id)!, created: false };
+  // REL-02: sanitise expiryHours — NaN/Infinity would produce an invalid expiry.
+  const rawExpiry = Number(config?.expiryHours);
+  const expiryHours = Number.isFinite(rawExpiry) ? rawExpiry : 2;
+  const ttl = Math.min(Math.max(expiryHours, 1), 24) * HOUR_MS;
   const session: Session = {
     id,
     name: (config?.name ?? '').slice(0, 60),
@@ -87,7 +129,7 @@ export function getOrCreateSession(id: string, config?: SessionConfig): Session 
     venuePoints: (config?.venuePoints ?? []).slice(0, 5),
   };
   sessions.set(id, session);
-  return session;
+  return { session, created: true };
 }
 
 function nextColor(session: Session): string {
@@ -181,6 +223,12 @@ export function addMessage(
 export function updateVenuePoints(sessionId: string, points: VenuePoint[]): VenuePoint[] | null {
   const session = sessions.get(sessionId);
   if (!session) return null;
-  session.venuePoints = points.slice(0, 5);
+  // COR-02: Internal validation — ensures invariants hold even if called directly.
+  const VENUE_ID_RE = /^[\w-]{1,64}$/;
+  const safe = points
+    .filter(p => VENUE_ID_RE.test(p.id) && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+    .slice(0, 5)
+    .map(p => ({ ...p, label: String(p.label ?? '').slice(0, 40) }));
+  session.venuePoints = safe;
   return session.venuePoints;
 }

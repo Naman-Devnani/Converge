@@ -36,19 +36,21 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
 
   function shareViaWhatsApp() {
     const msg = encodeURIComponent(`Join my MeetSync meetup → ${sessionUrl}`);
-    window.open(`https://wa.me/?text=${msg}`, '_blank');
+    // QUAL-03: Add noopener,noreferrer to prevent opener access.
+    window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener,noreferrer');
   }
 
   const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
+      <div role="dialog" aria-modal="true" aria-labelledby="share-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
 
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🔗</div>
           <div>
-            <h2 className="font-bold text-white">Invite people</h2>
+            <h2 id="share-modal-title" className="font-bold text-white">Invite people</h2>
             <p className="text-slate-400 text-sm">Anyone with this link can join</p>
           </div>
         </div>
@@ -91,7 +93,8 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
               <span className="flex-1 text-white font-mono text-sm tracking-wide">
                 {showPass ? password : '••••••••••••'}
               </span>
-              <button onClick={() => setShowPass(v => !v)} className="text-slate-500 hover:text-slate-300 text-sm">
+              {/* A11Y-07: aria-label for password visibility toggle */}
+              <button onClick={() => setShowPass(v => !v)} aria-label={showPass ? 'Hide password' : 'Show password'} className="text-slate-500 hover:text-slate-300 text-sm">
                 {showPass ? '🙈' : '👁'}
               </button>
             </div>

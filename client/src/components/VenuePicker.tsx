@@ -3,15 +3,19 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet';
 import type { VenuePoint } from '../types';
 import '../utils/leaflet-setup'; // N-2: shared icon fix — no duplicate code
+// SEC-08: Use shared sanitization utility for color injection.
+import { safeHexColor } from '../utils/sanitize';
 
 export const VENUE_COLORS = ['#8b5cf6', '#3b82f6', '#ec4899', '#f59e0b', '#06b6d4'];
 export const MAX_VENUES   = 5;
 
 function makePickerIcon(color: string) {
+  // SEC-08: Validate color before injecting into HTML.
+  const safeColor = safeHexColor(color);
   return L.divIcon({
     html: `<div style="
       width:22px;height:22px;border-radius:50%;
-      background:${color};border:3px solid #fff;
+      background:${safeColor};border:3px solid #fff;
       box-shadow:0 2px 8px rgba(0,0,0,0.5);
     "></div>`,
     className: '',
@@ -92,6 +96,8 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
         const res = await fetch(
           `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=en`,
         );
+        // SEC-09: Throw on non-OK so the catch block handles API errors.
+        if (!res.ok) throw new Error('Photon API error');
         const data = await res.json();
         setResults(data.features ?? []);
       } catch { setResults([]); }
@@ -111,6 +117,8 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
   }
 
   const addFromResult = (f: PhotonFeature) => {
+    // REL-04: Guard against missing geometry.
+    if (!f?.geometry?.coordinates?.length) return;
     if (venuePoints.length >= MAX_VENUES) return;
     const [lng, lat] = f.geometry.coordinates;
     onChange([...venuePoints, {
@@ -161,6 +169,9 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
             <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
           )}
         </div>
+
+        {/* SEC-09: Disclose third-party geocoding provider */}
+        <p className="text-[10px] text-slate-600 mt-0.5">Place search by <a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer" className="underline">Photon/OSM</a></p>
 
         {/* Dropdown results */}
         {results.length > 0 && (

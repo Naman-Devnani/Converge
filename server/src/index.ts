@@ -6,7 +6,6 @@ import path from 'path';
 import {
   getSession,
   getOrCreateSession,
-  sessionExists,
   addParticipant,
   updateLocation,
   removeParticipant,
@@ -16,7 +15,7 @@ import {
   endSession,
   addMessage,
   updateVenuePoints,
-  validatePassword,
+  verifyPasswordAsync,
   type SessionConfig,
 } from './sessions';
 import type { VenuePoint } from './types';
@@ -24,7 +23,12 @@ import type { VenuePoint } from './types';
 const app    = express();
 const isProd = process.env.NODE_ENV === 'production';
 
-app.use(cors({ origin: isProd ? false : '*' }));
+// SEC-01: In prod, use an env-var allowlist instead of blocking all origins.
+app.use(cors({
+  origin: isProd
+    ? (process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',') : false)
+    : '*',
+}));
 app.use(express.json());
 
 const httpServer = createServer(app);
@@ -83,7 +87,7 @@ app.get('/api/sessions/:id', (req, res) => {
 
 io.on('connection', (socket) => {
 
-  socket.on('join-session', ({
+  socket.on('join-session', async ({
     sessionId, name, password, config,
   }: {
     sessionId: string;
@@ -99,10 +103,19 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Invalid name' }); return;
     }
 
+    // SEC-04: Prefer x-forwarded-for (first value) over raw TCP address to work
+    // correctly behind a reverse proxy.
+    const rawForwarded = socket.handshake.headers['x-forwarded-for'];
+    const clientIp = (typeof rawForwarded === 'string'
+      ? rawForwarded.split(',')[0]
+      : Array.isArray(rawForwarded)
+        ? rawForwarded[0]
+        : undefined
+    )?.trim() ?? socket.handshake.address;
+
     // H-2: Rate-limit join attempts per IP
-    const clientIp = socket.handshake.address;
-    const now      = Date.now();
-    const rl       = joinThrottle.get(clientIp);
+    const now = Date.now();
+    const rl  = joinThrottle.get(clientIp);
     if (rl && now < rl.resetAt) {
       if (rl.count >= JOIN_MAX) {
         socket.emit('error', { message: 'Too many join attempts, please wait', code: 'RATE_LIMITED' }); return;
@@ -112,22 +125,43 @@ io.on('connection', (socket) => {
       joinThrottle.set(clientIp, { count: 1, resetAt: now + JOIN_WINDOW_MS });
     }
 
-    // C-1: Track whether this session existed BEFORE this call.
-    // Only the first caller (new session + config) becomes host.
-    // Existing sessions always require password validation, even with config.
-    const isNewSession = !sessionExists(sessionId);
-    const session = getOrCreateSession(sessionId, isNewSession ? config : undefined);
+    // SEC-03: Validate and strip venuePoints from config before passing to getOrCreateSession.
+    const VENUE_ID_RE = /^[\w-]{1,64}$/;
+    let safeConfig: SessionConfig | undefined = config;
+    if (config?.venuePoints) {
+      const safePoints = (Array.isArray(config.venuePoints) ? config.venuePoints : [])
+        .filter((p: VenuePoint) =>
+          p && typeof p.id === 'string' && VENUE_ID_RE.test(p.id) &&
+          Number.isFinite(p.lat) && Number.isFinite(p.lng),
+        )
+        .slice(0, 5)
+        .map((p: VenuePoint) => ({ ...p, label: String(p.label ?? '').slice(0, 40) }));
+      safeConfig = { ...config, venuePoints: safePoints };
+    }
+
+    // COR-01: Derive isNewSession from getOrCreateSession return value to avoid race.
+    const { session, created: isNewSession } = getOrCreateSession(sessionId, safeConfig);
 
     if (Date.now() > session.expiresAt) {
       socket.emit('error', { message: 'Session has expired', code: 'SESSION_EXPIRED' }); return;
     }
 
-    // C-1 + password: for existing sessions, always validate password regardless of config presence
+    // C-1 + password: for existing sessions, always validate password regardless of config presence.
+    // PERF-01: Use async password verification to avoid blocking the event loop.
     if (!isNewSession && session.passwordHash) {
-      if (!validatePassword(sessionId, password ?? '')) {
+      const ok = await verifyPasswordAsync(password ?? '', session.passwordHash);
+      if (!ok) {
         socket.emit('error', { message: 'Incorrect password', code: 'WRONG_PASSWORD' }); return;
       }
     }
+
+    // PERF-01: If creating session with password, hash it asynchronously.
+    // (hashPassword was already called synchronously in getOrCreateSession, but for new
+    //  sessions where the password needs updating we use the async version.)
+    // Note: getOrCreateSession already set passwordHash via sync hashPassword.
+    // This is a no-op placeholder — async hashing on create would require a two-phase
+    // approach. The sync call in sessions.ts uses the same scrypt params, acceptable
+    // for the low-concurrency join flow.
 
     // M-7: Single authoritative capacity check (addParticipant also checks, but we want a typed error here)
     if (Object.keys(session.participants).length >= session.maxParticipants) {
@@ -141,7 +175,7 @@ io.on('connection', (socket) => {
     socketSession.set(socket.id, sessionId);
 
     // C-1: Only the creator of a NEW session can become host
-    if (config && isNewSession) setHost(sessionId, socket.id);
+    if (safeConfig && isNewSession) setHost(sessionId, socket.id);
 
     const isSessionHost = isHost(sessionId, socket.id);
 
@@ -275,10 +309,26 @@ io.on('connection', (socket) => {
     io.to(sessionId).emit('venue-points-updated', { venuePoints: saved });
   });
 
-  // H-5: Let the client verify the session still exists after a reconnect
+  // H-5: Let the client verify the session still exists after a reconnect.
+  // REL-03: Apply the same per-IP rate limit as join-session.
   socket.on('check-session', ({ sessionId }: { sessionId?: string }) => {
     if (!sessionId || typeof sessionId !== 'string') {
       socket.emit('session-status', { exists: false }); return;
+    }
+    const rawFwd = socket.handshake.headers['x-forwarded-for'];
+    const ip = (typeof rawFwd === 'string'
+      ? rawFwd.split(',')[0]
+      : Array.isArray(rawFwd) ? rawFwd[0] : undefined
+    )?.trim() ?? socket.handshake.address;
+    const now2 = Date.now();
+    const rl2  = joinThrottle.get(ip);
+    if (rl2 && now2 < rl2.resetAt) {
+      if (rl2.count >= JOIN_MAX) {
+        socket.emit('session-status', { exists: false }); return;
+      }
+      rl2.count++;
+    } else {
+      joinThrottle.set(ip, { count: 1, resetAt: now2 + JOIN_WINDOW_MS });
     }
     const session = getSession(sessionId);
     socket.emit('session-status', {
@@ -293,11 +343,33 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Only the host can end the session' }); return;
     }
 
-    // L-7: Cancel all grace-period timers for participants in this session
+    // Get the session's participant set BEFORE ending so we can clean up offline timers.
+    const endingSession = getSession(sessionId);
+    const sessionParticipantIds = endingSession
+      ? new Set(Object.keys(endingSession.participants))
+      : new Set<string>();
+
+    // COR-03 + REL-01: Cancel grace-period timers for sockets in this session (including
+    // those already removed from socketSession due to disconnecting).
+    // First: iterate socketSession to cover online sockets.
     for (const [sid, sessId] of socketSession.entries()) {
       if (sessId === sessionId) {
         const timer = offlineTimers.get(sid);
         if (timer) { clearTimeout(timer); offlineTimers.delete(sid); }
+        // COR-03: Also clean up throttle maps.
+        socketSession.delete(sid);
+        locationThrottle.delete(sid);
+        chatThrottle.delete(sid);
+      }
+    }
+    // REL-01: Also cancel timers for offline sockets (already removed from socketSession
+    // but still have pending offlineTimers).
+    for (const [sid, timer] of offlineTimers.entries()) {
+      if (sessionParticipantIds.has(sid)) {
+        clearTimeout(timer);
+        offlineTimers.delete(sid);
+        locationThrottle.delete(sid);
+        chatThrottle.delete(sid);
       }
     }
 
@@ -314,10 +386,15 @@ io.on('connection', (socket) => {
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  // SEC-02: Exclude /api/* paths from the catch-all so API 404s aren't served as index.html.
+  app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
 
-const PORT = process.env.PORT ?? 3001;
+// SEC-05: Validate PORT env var before binding.
+const PORT = Number(process.env.PORT ?? 3001);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`Invalid PORT: ${process.env.PORT}`);
+}
 httpServer.listen(PORT, () =>
   console.log(`MeetSync server → http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`),
 );

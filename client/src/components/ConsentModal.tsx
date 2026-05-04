@@ -12,13 +12,14 @@ export default function ConsentModal({ isNewSession, onConsent }: Props) {
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
+      <div role="dialog" aria-modal="true" aria-labelledby="consent-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
 
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-4xl">
             {isNewSession ? '🚀' : '📍'}
           </div>
-          <h2 className="text-xl font-bold text-white">
+          <h2 id="consent-modal-title" className="text-xl font-bold text-white">
             {isNewSession ? 'Start your meetup' : 'Join this meetup'}
           </h2>
           <p className="text-slate-400 text-sm mt-1.5 leading-relaxed">

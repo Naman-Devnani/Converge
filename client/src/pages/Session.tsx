@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { socket } from '../socket';
 import type { Participant, SessionState, ChatMessage, VenuePoint } from '../types';
@@ -43,9 +43,9 @@ export default function Session() {
   const [chatMessages,       setChatMessages]       = useState<ChatMessage[]>([]);
   const [unreadCount,        setUnreadCount]        = useState(0);
   const [isConnected,        setIsConnected]        = useState(socket.connected);
-  const [expiresAt,          setExpiresAt]          = useState<number | null>(null);
-  const [sessionName,        setSessionName]        = useState('');
+  // QUAL-04: Derive expiresAt and sessionName from session state instead of duplicating.
   const [timeLeft,           setTimeLeft]           = useState('');
+  const [fetchError,         setFetchError]         = useState<string | null>(null); // SEC-06
   const [amHost,             setAmHost]             = useState(false);
   const [confirmEnd,         setConfirmEnd]         = useState(false);
   const [sessionEnded,       setSessionEnded]       = useState(false);
@@ -65,12 +65,20 @@ export default function Session() {
   const hasJoinedRef       = useRef(false);
   // M-5: guard against double-disconnect in cleanup vs Leave button
   const disconnectedRef    = useRef(false);
+  // COR-06: Capture hostState in a ref so handleConsent doesn't recreate on every render.
+  const hostStateRef       = useRef(hostState);
+  useEffect(() => { hostStateRef.current = hostState; }, [hostState]);
+
+  // QUAL-04: Derive expiresAt and sessionName from session to avoid duplicate state.
+  const expiresAt   = session?.expiresAt  ?? null;
+  const sessionName = session?.sessionName ?? '';
 
   useEffect(() => { showChatRef.current = showChat; }, [showChat]);
 
-  // Validate session ID
+  // SEC-07: Full regex check for session ID format.
+  const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
   useEffect(() => {
-    if (!sessionId || sessionId.length < 6) navigate('/');
+    if (!sessionId || !SESSION_ID_RE.test(sessionId)) navigate('/');
   }, [sessionId, navigate]);
 
   // Check session existence + password requirement
@@ -83,7 +91,10 @@ export default function Session() {
       return;
     }
 
-    fetch(`/api/sessions/${sessionId}`)
+    // REL-05: Add AbortController with 8-second timeout to prevent hanging fetches.
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    fetch(`/api/sessions/${sessionId}`, { signal: ctrl.signal })
       .then(r => {
         if (r.status === 404) {
           setIsNewSession(true);
@@ -100,10 +111,11 @@ export default function Session() {
           setShowConsent(true);
         }
       })
+      // SEC-06: On network error, show error state rather than silently opening consent.
       .catch(() => {
-        setIsNewSession(true);
-        setShowConsent(true);
-      });
+        setFetchError('Could not reach server — try refreshing.');
+      })
+      .finally(() => clearTimeout(timer));
   }, [sessionId, hostState?.isHost]);
 
   // Expiry countdown
@@ -169,8 +181,7 @@ export default function Session() {
         hostId:       data.hostId,
         venuePoints:  data.venuePoints ?? [],
       });
-      setExpiresAt(data.expiresAt);
-      setSessionName(data.sessionName);
+      // QUAL-04: expiresAt and sessionName are derived from session — no separate setState needed.
       setChatMessages(data.messages || []);
       setAmHost(data.isHost);
       // H-4: clear the pending password from memory once the server confirms we joined.
@@ -318,8 +329,8 @@ export default function Session() {
     } else {
       // ── No venue: fire when another participant gets near me ─────────────────
       const me = session.participants[session.myId];
-      // L-9: strict null check
-      if (me?.lat === null || me?.lng === null || !me) return;
+      // COR-05: Check !me first, then lat/lng nulls (correct null-guard order).
+      if (!me || me.lat === null || me.lng === null) return;
 
       for (const p of Object.values(session.participants)) {
         // L-9: strict null check
@@ -339,7 +350,9 @@ export default function Session() {
         }
       }
     }
-  }, [session]);
+  // PERF-03: Depend only on participants/venuePoints/myId to avoid re-running on
+  // unrelated state changes (chat messages, connection status, etc.).
+  }, [session?.participants, session?.venuePoints, session?.myId]);
 
   const startLocationWatch = useCallback(() => {
     if (!('geolocation' in navigator)) {
@@ -397,18 +410,21 @@ export default function Session() {
     }
     setShowConsent(false);
 
+    // COR-06: Read hostState from ref so this callback doesn't recreate on every render.
+    const hs = hostStateRef.current;
+
     // H-5: persist join params so the reconnect handler in the socket effect can
     // re-emit join-session if the socket drops and re-establishes.
-    const params = hostState?.isHost
+    const params = hs?.isHost
       ? {
           sessionId,
           name,
           config: {
-            name:            hostState.sessionName    || '',
-            password:        hostState.password       || '',
-            expiryHours:     hostState.expiryHours    ?? 2,
-            maxParticipants: hostState.maxParticipants ?? 20,
-            venuePoints:     hostState.venuePoints    ?? [],
+            name:            hs.sessionName    || '',
+            password:        hs.password       || '',
+            expiryHours:     hs.expiryHours    ?? 2,
+            maxParticipants: hs.maxParticipants ?? 20,
+            venuePoints:     hs.venuePoints    ?? [],
           },
         }
       : {
@@ -423,14 +439,23 @@ export default function Session() {
     if (socket.connected) {
       doJoin();
     } else {
+      // COR-07: Guard socket.once so it only fires on first join, not reconnects.
+      // Reconnects are handled by onConnect in the socket effect (which checks hasJoinedRef).
+      if (!hasJoinedRef.current) {
+        socket.once('connect', doJoin);
+      }
       socket.connect();
-      socket.once('connect', doJoin);
     }
     startLocationWatch();
-  }, [sessionId, startLocationWatch, pendingPassword, hostState]);
+  // COR-06: Remove hostState from deps — read it via hostStateRef.current instead.
+  }, [sessionId, startLocationWatch, pendingPassword]);
 
   const sessionUrl  = `${window.location.origin}/session/${sessionId}`;
-  const participants = session ? Object.values(session.participants) : [];
+  // PERF-04: Memoize participants array so downstream components don't re-render on unrelated state changes.
+  const participants = useMemo(
+    () => session ? Object.values(session.participants) : [],
+    [session],
+  );
   const expiringSoon = expiresAt ? expiresAt - Date.now() < 600_000 : false;
 
   return (
@@ -620,6 +645,23 @@ export default function Session() {
         </div>
       )}
 
+      {/* SEC-06: Fetch error state — shown instead of consent when server unreachable */}
+      {fetchError && !showConsent && !showPasswordModal && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h2 className="text-white text-xl font-bold mb-2">Connection Error</h2>
+            <p className="text-slate-400 text-sm mb-6">{fetchError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Modals ── */}
       {showPasswordModal && (
         <PasswordModal
@@ -648,12 +690,13 @@ export default function Session() {
 
       {/* Venue editor modal (host only) */}
       {showVenueEditor && session && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          {/* A11Y-05: dialog role and aria-labelledby for screen readers */}
+          <div role="dialog" aria-modal="true" aria-labelledby="venue-editor-title" className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-800/60 flex-shrink-0">
               <div>
-                <h2 className="text-white font-bold text-base">Venue Points</h2>
+                <h2 id="venue-editor-title" className="text-white font-bold text-base">Venue Points</h2>
                 <p className="text-slate-500 text-xs mt-0.5">Pre-set meetup spots visible to everyone</p>
               </div>
               <button
@@ -693,7 +736,7 @@ export default function Session() {
 
       {/* Session ended overlay */}
       {sessionEnded && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">🏁</div>
             <h2 className="text-white text-xl font-bold mb-2">Session Ended</h2>
@@ -704,7 +747,7 @@ export default function Session() {
 
       {/* Session expired overlay */}
       {sessionExpired && !sessionEnded && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">⏱</div>
             <h2 className="text-white text-xl font-bold mb-2">Session Expired</h2>
@@ -722,7 +765,7 @@ export default function Session() {
       {/* M-10: Reconnect-failed overlay — shown when socket.io exhausts all
            reconnection attempts (reconnectionAttempts=5 in socket.ts).           */}
       {reconnectFailed && !sessionEnded && !sessionExpired && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">📡</div>
             <h2 className="text-white text-xl font-bold mb-2">Connection Lost</h2>

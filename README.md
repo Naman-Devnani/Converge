@@ -37,7 +37,7 @@ Existing apps like Google Maps and WhatsApp location sharing weren't built for t
 **Create a temporary meetup room → share a link → everyone approves location access → see each other live on the same map.**
 
 ```
-"Let's meet."  →  [Share link]  →  📍 See each other in real time
+"Let's meet."  →  [Share link]  →  See each other in real time
 ```
 
 No endless texting. No permanent tracking. No app install. Just — meet.
@@ -68,24 +68,24 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 
 | Feature | Description |
 |---|---|
-| 🗺️ **Mutual live tracking** | Everyone in the session sees each other's real-time position |
-| ⏱️ **Smart ETA** | Live distance and estimated time to meetup for each participant |
-| 🏁 **Venue midpoint** | "Meet here" marker auto-placed at the centroid of all participants |
-| 📍 **Venue mode** | Host can pre-set up to 5 named meetup points (searchable via Photon/OSM) before the session starts; venue pins appear on everyone's map |
-| 💬 **In-session chat** | Group chat panel with unread badge — no phone numbers needed |
-| 🔒 **Optional password** | Password-protect sessions; memorable generated passwords (e.g. `amber-peak-44`) |
-| 🌫️ **Approximate mode** | Optional ±500 m grid-snap blur; a per-session random jitter prevents cross-session re-identification even when two people share a location |
-| 🎉 **Arrived alerts** | Notification + haptic when someone reaches within 80 m of you |
-| ⏳ **Custom expiry** | Sessions expire in 1–24 h (default 2 h), or 10 min after everyone leaves |
-| 👥 **Participant limit** | Set max 2–50 people per session (default 20) |
-| 🟢 **Online/offline status** | Participant dot goes grey on disconnect, removed after 30 s grace period |
-| 🏷️ **Host/guest labels** | Each participant card shows their role so everyone knows who created the session |
-| 🚪 **End / Leave session** | Host can end the session for everyone; guests can leave explicitly at any time |
-| 📋 **Session history** | Last 5 sessions saved locally — rejoin with one tap |
-| 📤 **Native share sheet** | Uses Web Share API on mobile (any app); WhatsApp deeplink fallback on desktop |
-| 🔗 **No install needed** | Web-first — share a link, open in browser, done |
-| 📱 **PWA ready** | Add to Home Screen on iOS and Android |
-| 🌐 **Open source** | Transparent codebase — no dark patterns, no data selling |
+| **Mutual live tracking** | Everyone in the session sees each other's real-time position |
+| **Smart ETA** | Live distance and estimated time to meetup for each participant |
+| **Venue midpoint** | "Meet here" marker auto-placed at the centroid of all participants |
+| **Venue mode** | Host can pre-set up to 5 named meetup points (searchable via Photon/OSM) before the session starts; venue pins appear on everyone's map |
+| **In-session chat** | Group chat panel with unread badge — no phone numbers needed |
+| **Optional password** | Password-protect sessions; memorable generated passwords (e.g. `amber-peak-44`) |
+| **Approximate mode** | Optional ±500 m grid-snap blur; a per-session random jitter prevents cross-session re-identification even when two people share a location |
+| **Arrived alerts** | Notification + haptic when someone reaches within 80 m of you |
+| **Custom expiry** | Sessions expire in 1–24 h (default 2 h), or 10 min after everyone leaves |
+| **Participant limit** | Set max 2–50 people per session (default 20) |
+| **Online/offline status** | Participant dot goes grey on disconnect, removed after 30 s grace period |
+| **Host/guest labels** | Each participant card shows their role so everyone knows who created the session |
+| **End / Leave session** | Host can end the session for everyone; guests can leave explicitly at any time |
+| **Session history** | Last 5 sessions saved locally — rejoin with one tap |
+| **Native share sheet** | Uses Web Share API on mobile (any app); WhatsApp deeplink fallback on desktop |
+| **No install needed** | Web-first — share a link, open in browser, done |
+| **PWA ready** | Add to Home Screen on iOS and Android |
+| **Open source** | Transparent codebase — no dark patterns, no data selling |
 
 ---
 
@@ -99,13 +99,13 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 └──────┬──────┘                    └──────┬──────┘
        │  consents to location            │  consents to location
        ▼                                  ▼
-  📍 Alice's pin                     📍 Bob's pin
+  Alice's pin                          Bob's pin
        │                                  │
        └──────────── Live Map ────────────┘
                   Both see each other
                   Distance + ETA shown
-                  🏁 Midpoint "Meet here" marker
-                  🎉 "Bob has arrived!" at 80 m
+                  Midpoint "Meet here" marker
+                  "Bob has arrived!" at 80 m
 ```
 
 1. **Create** — tap "Create Meetup", optionally set a name / password / expiry
@@ -176,7 +176,7 @@ This repo includes a `render.yaml` for one-click deployment.
 
 ### Steps
 
-1. Push this repo to GitHub ✅
+1. Push this repo to GitHub
 2. Sign up at [render.com](https://render.com) (no credit card required)
 3. Click **New +** → **Blueprint**
 4. Connect your GitHub account → select `MeetSync`

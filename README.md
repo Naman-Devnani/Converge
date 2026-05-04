@@ -262,6 +262,15 @@ Please open an issue first for major changes.
 
 ---
 
+## Credits
+
+| Contributor | Role |
+|---|---|
+| [Naman Devnani](https://github.com/Naman-Devnani) | Creator & maintainer |
+| [Claude](https://claude.ai) (Anthropic) | AI pair programmer — architecture, security hardening, bug fixes |
+
+---
+
 ## License
 
 MIT © [Naman Devnani](https://github.com/Naman-Devnani)

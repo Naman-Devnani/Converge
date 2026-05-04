@@ -95,19 +95,28 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
   const circlesRef      = useRef<Record<string, L.Circle>>(Object.create(null));
   const midpointRef     = useRef<L.Marker | null>(null);
   const venueMarkersRef = useRef<Record<string, L.Marker>>(Object.create(null));
-  const userMovedRef    = useRef(false);
+  const userMovedRef = useRef(false);
+  // skipZoomRef is set to true immediately before any programmatic setView/fitBounds
+  // call so the resulting zoomstart event is not mistaken for a user interaction.
+  const skipZoomRef  = useRef(false);
 
   // Stop auto-fitting once the user manually pans or zooms.
-  // N-3: use typed LeafletEvent instead of any.
+  // NOTE: Leaflet's zoomstart event never carries originalEvent (it is a map-state
+  // event, not a DOM-event wrapper), so we cannot use originalEvent to distinguish
+  // user from programmatic zooms. Instead we use skipZoomRef: our code sets it
+  // true before calling fitBounds/setView; the handler clears it each time it fires.
+  // Any zoomstart that arrives without skipZoomRef being true is user-initiated.
   useEffect(() => {
-    const onInteract = (e: L.LeafletEvent & { originalEvent?: Event }) => {
-      if (e.originalEvent) userMovedRef.current = true;
+    const onDragStart = () => { userMovedRef.current = true; };
+    const onZoomStart = () => {
+      if (!skipZoomRef.current) userMovedRef.current = true;
+      skipZoomRef.current = false;
     };
-    map.on('dragstart', onInteract);
-    map.on('zoomstart', onInteract);
+    map.on('dragstart', onDragStart);
+    map.on('zoomstart', onZoomStart);
     return () => {
-      map.off('dragstart', onInteract);
-      map.off('zoomstart', onInteract);
+      map.off('dragstart', onDragStart);
+      map.off('zoomstart', onZoomStart);
     };
   }, [map]);
 
@@ -219,8 +228,10 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
 
     if (!userMovedRef.current) {
       if (allLatlngs.length === 1) {
+        skipZoomRef.current = true;
         map.setView(allLatlngs[0] as L.LatLngExpression, Math.max(map.getZoom(), 15), { animate: true });
       } else if (allLatlngs.length > 1) {
+        skipZoomRef.current = true;
         map.fitBounds(L.latLngBounds(allLatlngs as L.LatLngExpression[]), {
           padding: [64, 64],
           maxZoom: 17,

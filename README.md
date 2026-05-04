@@ -44,6 +44,18 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 
 ---
 
+## Screenshots
+
+| Home | Join / Consent |
+|---|---|
+| ![Home page](.github/assets/screenshot-home.png) | ![Join modal](.github/assets/screenshot-join.png) |
+
+| Live Map (with participants) | Invite / Share |
+|---|---|
+| ![Live map](.github/assets/screenshot-map.png) | ![Share modal](.github/assets/screenshot-share.png) |
+
+---
+
 ## Features
 
 | Feature | Description |

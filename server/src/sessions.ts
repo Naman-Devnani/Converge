@@ -43,13 +43,11 @@ export function hashPassword(password: string): string {
 }
 
 // PERF-01: Async variant using callback-based scrypt so it doesn't block the event loop.
-// N is intentionally 8192 (halved from 16384) to reduce per-hash blocking time while
-// remaining cryptographically strong for ephemeral session passwords.
-const ASYNC_N = 8192;
+// Uses the same SCRYPT_N as hashPassword so hashes are interchangeable with verifyPassword.
 export function hashPasswordAsync(password: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
   return new Promise((resolve, reject) => {
-    scrypt(password, salt, SCRYPT_KEYLEN, { N: ASYNC_N, r: SCRYPT_R, p: SCRYPT_P }, (err, hash) => {
+    scrypt(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }, (err, hash) => {
       if (err) reject(err);
       else resolve(`${salt}:${hash.toString('hex')}`);
     });

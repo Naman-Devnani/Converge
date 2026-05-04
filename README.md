@@ -46,13 +46,21 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 
 ## Screenshots
 
-| Home | Join / Consent |
+| Home | Advanced Settings |
 |---|---|
-| ![Home page](.github/assets/screenshot-home.png) | ![Join modal](.github/assets/screenshot-join.png) |
+| ![Home page](.github/assets/screenshot-home.png) | ![Advanced settings — password, expiry, participant limit](.github/assets/screenshot-advanced.png) |
 
-| Live Map (with participants) | Invite / Share |
+| Venue Mode | Session History |
 |---|---|
-| ![Live map](.github/assets/screenshot-map.png) | ![Share modal](.github/assets/screenshot-share.png) |
+| ![Venue mode — pre-set named meetup points](.github/assets/screenshot-venue.png) | ![Session history — rejoin recent meetups](.github/assets/screenshot-history.png) |
+
+| Join / Consent | Live Map |
+|---|---|
+| ![Join and consent modal](.github/assets/screenshot-join.png) | ![Live map with participants, ETAs and midpoint](.github/assets/screenshot-map.png) |
+
+| In-Session Chat | Invite / Share |
+|---|---|
+| ![In-session group chat](.github/assets/screenshot-chat.png) | ![Share modal — copy link or WhatsApp](.github/assets/screenshot-share.png) |
 
 ---
 

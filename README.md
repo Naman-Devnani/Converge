@@ -119,12 +119,14 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 ## Tech Stack
 
 ```
-Frontend                    Backend
-────────────────────        ────────────────────
-React 18 + TypeScript       Node.js + Express
-Vite 8                      Socket.io 4
-Tailwind CSS 3              In-memory session store
-react-leaflet 4             TypeScript
+Frontend                        Backend
+────────────────────────        ────────────────────
+React 18 + TypeScript           Node.js + Express
+Vite 8                          Socket.io 4
+Tailwind CSS 3 · M3 tokens      In-memory session store
+react-leaflet 4                 helmet + tailored CSP
+Plus Jakarta Sans + Material    TypeScript
+  Symbols (self-hosted)         node:test (unit + integration)
 CartoDB dark map tiles
 ```
 
@@ -216,10 +218,14 @@ No secrets required. The only env vars used at deploy time:
 
 ```
 Converge/
+├── .github/workflows/ci.yml   # CI: lint, typecheck, build, test (Node 22)
 ├── client/                    # React frontend (Vite)
 │   ├── public/
 │   │   ├── manifest.json      # PWA manifest
+│   │   ├── fonts/             # Self-hosted Material Symbols (subset)
+│   │   ├── leaflet/           # Vendored Leaflet marker images
 │   │   └── icons/icon.svg     # App icon
+│   ├── eslint.config.mjs      # ESLint (flat config)
 │   └── src/
 │       ├── pages/
 │       │   ├── Home.tsx            # Landing page + advanced settings
@@ -237,16 +243,19 @@ Converge/
 │       │   ├── password.ts        # Memorable password generator
 │       │   ├── sanitize.ts        # Input sanitisation helpers
 │       │   ├── history.ts         # LocalStorage session history
+│       │   ├── useFocusTrap.ts    # Accessible modal focus trap
 │       │   └── leaflet-setup.ts   # Leaflet default-icon fix (imported once at app root)
 │       ├── socket.ts          # Socket.io client singleton
 │       └── types.ts           # Shared TypeScript types
 │
 ├── server/                    # Node.js backend
-│   └── src/
-│       ├── index.ts           # Express + Socket.io server
-│       ├── sessions.ts        # In-memory session store + password hashing
-│       └── types.ts           # Shared TypeScript types
+│   ├── src/
+│   │   ├── index.ts           # Express + Socket.io server (helmet, rate limits)
+│   │   ├── sessions.ts        # In-memory session store + password hashing
+│   │   └── types.ts           # Shared TypeScript types
+│   └── test/                  # node:test — session unit + socket integration tests
 │
+├── .nvmrc / .node-version     # Pin Node 22.12.0
 ├── render.yaml                # One-click Render deployment
 └── package.json               # npm workspaces root
 ```

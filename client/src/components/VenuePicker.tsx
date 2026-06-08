@@ -92,30 +92,32 @@ export default function VenuePicker({ venuePoints, onChange }: Props) {
   return (
     <div className="space-y-md">
       {/* Search */}
-      <div className="relative">
-        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-        <input
-          type="text" value={query} onChange={e => handleQueryChange(e.target.value)}
-          placeholder="Search address or venue name…"
-          className="w-full bg-surface-container-low border-none rounded-2xl py-3 pl-12 pr-10 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-secondary transition-all outline-none text-body-md"
-        />
-        {searching && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-secondary border-t-transparent rounded-full animate-spin" />}
+      <div>
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">search</span>
+          <input
+            type="text" value={query} onChange={e => handleQueryChange(e.target.value)}
+            placeholder="Search address or venue name…"
+            className="w-full bg-surface-container-low border-none rounded-2xl py-3 pl-12 pr-10 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-secondary transition-all outline-none text-body-md"
+          />
+          {searching && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-secondary border-t-transparent rounded-full animate-spin" />}
 
-        {results.length > 0 && (
-          <div className="fade-in-down absolute z-[9999] left-0 right-0 mt-2 glass-card rounded-2xl overflow-hidden shadow-2xl max-h-52 overflow-y-auto">
-            <div className="p-2 space-y-1">
-              {results.map((f, i) => (
-                <button key={`${f.properties.osm_id}-${i}`} type="button" onClick={() => addFromResult(f)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container-high transition-colors text-left">
-                  <span className="material-symbols-outlined text-secondary opacity-70 flex-shrink-0">location_on</span>
-                  <div className="min-w-0">
-                    <p className="text-on-surface font-semibold text-sm truncate">{photonLabel(f.properties)}</p>
-                    <p className="text-xs text-on-surface-variant truncate">{photonSubtitle(f.properties)}</p>
-                  </div>
-                </button>
-              ))}
+          {results.length > 0 && (
+            <div className="fade-in-down absolute z-[9999] top-full left-0 right-0 mt-2 glass-card rounded-2xl overflow-hidden shadow-2xl max-h-52 overflow-y-auto">
+              <div className="p-2 space-y-1">
+                {results.map((f, i) => (
+                  <button key={`${f.properties.osm_id}-${i}`} type="button" onClick={() => addFromResult(f)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container-high transition-colors text-left">
+                    <span className="material-symbols-outlined text-secondary opacity-70 flex-shrink-0">location_on</span>
+                    <div className="min-w-0">
+                      <p className="text-on-surface font-semibold text-sm truncate">{photonLabel(f.properties)}</p>
+                      <p className="text-xs text-on-surface-variant truncate">{photonSubtitle(f.properties)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
         <p className="text-[10px] text-on-surface-variant/60 mt-1 ml-1">Place search by <a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer" className="underline">Photon/OSM</a></p>
       </div>
 

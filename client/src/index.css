@@ -8,77 +8,162 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 body {
-  background: #0f172a;
-  color: #f8fafc;
+  background: #0b1326; /* surface / background */
+  color: #dae2fd;      /* on-background */
   overscroll-behavior: none;
 }
 
-/* ── Leaflet map ── */
-.leaflet-container {
-  background: #1e293b;
-  font-family: inherit;
+/* ── Stitch design utilities (Material 3 "C" system) ────────────────────────── */
+.glow-shadow-emerald { box-shadow: 0 20px 40px -15px rgba(78, 222, 163, 0.3); }
+.glow-shadow-purple  { box-shadow: 0 20px 40px -15px rgba(183, 109, 255, 0.3); }
+
+.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* Material Symbols (subset to the ~48 icons used; self-hosted, same-origin).
+   Regenerate: pyftsubset of material-symbols-outlined instanced to wght=400. */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-subset.woff2') format('woff2');
+}
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ── Leaflet map ── */
+.leaflet-container { background: #0b1326; font-family: inherit; }
 
 /* ── Custom marker ── */
 .ms-marker {
   border-radius: 50%;
-  border: 2.5px solid #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  border: 2.5px solid #0b1326;
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.85), 0 2px 10px rgba(0,0,0,0.6);
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Stitch .marker-glow — soft colored halo around each pin */
+  filter: drop-shadow(0 0 6px currentColor);
 }
-.ms-marker:hover { transform: scale(1.2); }
-
+.ms-marker:hover { transform: scale(1.25); }
 .ms-marker-me {
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 2px 10px rgba(0,0,0,0.6);
+  border: 3px solid #0b1326;
+  box-shadow: 0 0 0 2.5px rgba(110,251,190,0.9), 0 2px 12px rgba(0,0,0,0.7);
+  filter: drop-shadow(0 0 10px #6ffbbe);
 }
-
 .ms-label {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-top: 3px;
-  background: rgba(15,23,42,0.85);
-  color: #f8fafc;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  backdrop-filter: blur(4px);
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  margin-top: 4px;
+  background: rgba(11, 19, 38, 0.9);
+  color: #dae2fd;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 6px;
+  white-space: nowrap; pointer-events: none;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.08);
 }
 
 /* ── Pulse animation for "me" marker ── */
-@keyframes pulse-ring {
-  0%   { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(3); opacity: 0; }
-}
-
-.ms-pulse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: inherit;
-  animation: pulse-ring 2s ease-out infinite;
-}
+@keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(3); opacity: 0; } }
+.ms-pulse::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: inherit; animation: pulse-ring 2s ease-out infinite; }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #475569; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 99px; }
 
-/* ── Slide-up animation for modals ── */
-@keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+/* Hide scrollbar (participant carousel) */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Motion (matched to Stitch) ───────────────────────────────────────────── */
+
+/* Bottom-sheet / modal entrance — springy easing from Stitch (cubic-bezier(0.16,1,0.3,1)) */
+@keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Dropdown / popover entrance — fade + slide down (Stitch venue results) */
+@keyframes fade-in-down { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in-down { animation: fade-in-down 0.25s ease-out; }
+
+/* Scrim fade */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.fade-in { animation: fade-in 0.3s ease-out; }
+
+/* Collapsible (Advanced settings) — Stitch max-height expand/collapse, 0.3s ease-out */
+.collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+.collapsible-content.open { max-height: 1500px; }
+
+/* Magical dissolve — the card fades & lifts while colorful glowing sparkles rise and twinkle out. */
+.magic-dissolving {
+  animation: magic-card-out 0.75s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
 }
-.slide-up { animation: slide-up 0.25s ease-out; }
+@keyframes magic-card-out {
+  0%   { opacity: 1; transform: scale(1)    translateY(0);     filter: blur(0); }
+  55%  { opacity: 0.55; transform: scale(0.99) translateY(-2px); filter: blur(0.5px); }
+  100% { opacity: 0; transform: scale(0.95) translateY(-10px); filter: blur(4px); }
+}
+
+.magic-particle {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: magic-rise;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes magic-rise {
+  0%   { opacity: 0;   transform: translate(0, 0) scale(0.4); }
+  20%  { opacity: 1;   transform: translate(calc(var(--dx) * 0.2), calc(var(--dy) * 0.15)) scale(1.15); }
+  100% { opacity: 0;   transform: translate(var(--dx), var(--dy)) scale(0); }
+}
+
+/* Arrival toast — gentle pop then settle (Stitch animate-bounce, softened) */
+@keyframes arrival-pop {
+  0%   { transform: translateY(-12px) scale(0.92); opacity: 0; }
+  60%  { transform: translateY(2px)   scale(1.02); opacity: 1; }
+  100% { transform: translateY(0)      scale(1);    opacity: 1; }
+}
+.arrival-pop { animation: arrival-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Status / live dot pulse (Stitch .pulse-animation) */
+@keyframes status-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+.status-pulse { animation: status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+/* Soft ambient glow pulse for hero/badge accents */
+@keyframes glow-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+.glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
+
+/* Respect users who prefer reduced motion — disable non-essential animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

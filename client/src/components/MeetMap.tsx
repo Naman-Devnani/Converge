@@ -22,7 +22,7 @@ function makeIcon(color: string, name: string, isMe: boolean) {
         "></div>` : ''}
         <div class="ms-marker ${isMe ? 'ms-marker-me' : ''}" style="
           width:${size}px;height:${size}px;
-          background:${safeColor};
+          background:${safeColor};color:${safeColor};
         "></div>
         <div class="ms-label">${safeName}${isMe ? ' ✦' : ''}</div>
       </div>
@@ -36,19 +36,21 @@ function makeIcon(color: string, name: string, isMe: boolean) {
 function makeMidpointIcon() {
   return L.divIcon({
     html: `
-      <div style="position:relative;width:32px;height:32px;">
+      <div style="position:relative;width:40px;height:40px;display:flex;flex-direction:column;align-items:center;">
         <div style="
-          width:32px;height:32px;border-radius:50%;
-          background:#f59e0b;border:3px solid #fff;
+          width:40px;height:40px;border-radius:9999px;
+          background:rgba(0,165,114,0.20);border:1px solid rgba(78,222,163,0.4);
           display:flex;align-items:center;justify-content:center;
-          font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.5);
-        ">🏁</div>
-        <div class="ms-label" style="background:#f59e0b;color:#000;font-weight:700;">Meet here</div>
+          color:#4edea3;filter:drop-shadow(0 0 8px #4edea3);
+        ">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#4edea3"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+        </div>
+        <div class="ms-label" style="background:rgba(23,31,51,0.9);color:#dae2fd;font-weight:700;border:1px solid rgba(255,255,255,0.1);">Meet here</div>
       </div>
     `,
     className: '',
-    iconSize:   [32, 32],
-    iconAnchor: [16, 16],
+    iconSize:   [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -296,32 +298,18 @@ function ZoomControls({ participants, myId }: { participants: Participant[]; myI
   };
 
   return (
-    <div className="absolute right-4 top-4 flex flex-col gap-1 z-[1000]">
+    <div className="absolute right-container-margin top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-md">
       {/* A11Y-01: Explicit aria-labels for screen reader users */}
-      <button
-        onClick={() => map.zoomIn()}
-        aria-label="Zoom in"
-        className="w-9 h-9 bg-[#1e293b]/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center text-lg font-bold hover:bg-[#334155] transition-colors"
-      >
-        +
-      </button>
-      <button
-        onClick={() => map.zoomOut()}
-        aria-label="Zoom out"
-        className="w-9 h-9 bg-[#1e293b]/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center text-lg font-bold hover:bg-[#334155] transition-colors"
-      >
-        −
-      </button>
-      <button
-        onClick={recenter}
-        aria-label="Recenter on my location"
-        title="Recenter on me"
-        className="w-9 h-9 mt-1 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center hover:bg-emerald-400 transition-colors"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-        </svg>
+      <div className="flex flex-col bg-surface-container/90 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+        <button onClick={() => map.zoomIn()} aria-label="Zoom in" className="p-2.5 hover:bg-white/5 text-on-surface-variant hover:text-on-surface transition-colors border-b border-white/10">
+          <span className="material-symbols-outlined">add</span>
+        </button>
+        <button onClick={() => map.zoomOut()} aria-label="Zoom out" className="p-2.5 hover:bg-white/5 text-on-surface-variant hover:text-on-surface transition-colors">
+          <span className="material-symbols-outlined">remove</span>
+        </button>
+      </div>
+      <button onClick={recenter} aria-label="Recenter on my location" title="Recenter on me" className="p-2.5 bg-surface-container-high/90 backdrop-blur-md border border-white/10 rounded-full text-primary hover:bg-white/10 transition-colors shadow-lg active:scale-90 flex items-center justify-center">
+        <span className="material-symbols-outlined">my_location</span>
       </button>
     </div>
   );

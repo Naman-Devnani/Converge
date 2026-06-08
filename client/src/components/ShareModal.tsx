@@ -8,131 +8,95 @@ interface Props {
 }
 
 export default function ShareModal({ sessionUrl, password, onClose }: Props) {
-  const [copiedLink, setCopiedLink]     = useState(false);
-  const [copiedPass, setCopiedPass]     = useState(false);
-  const [showPass,   setShowPass]       = useState(false);
-  const [copyFailed, setCopyFailed]     = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedPass, setCopiedPass] = useState(false);
+  const [showPass,   setShowPass]   = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [passOpen,   setPassOpen]   = useState(false);
   const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
   async function copy(text: string, which: 'link' | 'pass') {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Clipboard API can fail on non-HTTPS origins or when permission is denied —
-      // tell the user to copy manually instead of failing silently.
-      setCopyFailed(true);
-      setTimeout(() => setCopyFailed(false), 4000);
-      return;
-    }
-    if (which === 'link') {
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    } else {
-      setCopiedPass(true);
-      setTimeout(() => setCopiedPass(false), 2500);
-    }
+    try { await navigator.clipboard.writeText(text); }
+    catch { setCopyFailed(true); setTimeout(() => setCopyFailed(false), 4000); return; }
+    if (which === 'link') { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2500); }
+    else { setCopiedPass(true); setTimeout(() => setCopiedPass(false), 2500); }
   }
 
-  async function shareViaSystem() {
+  async function share() {
     if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Join my Converge meetup', url: sessionUrl });
-      } catch {
-        // user cancelled — do nothing
-      }
+      try { await navigator.share({ title: 'Join my Converge meetup', url: sessionUrl }); } catch { /* cancelled */ }
     } else {
-      copy(sessionUrl, 'link');
+      const msg = encodeURIComponent(`Join my Converge meetup → ${sessionUrl}`);
+      window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener,noreferrer');
     }
   }
 
-  function shareViaWhatsApp() {
-    const msg = encodeURIComponent(`Join my Converge meetup → ${sessionUrl}`);
-    // QUAL-03: Add noopener,noreferrer to prevent opener access.
-    window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener,noreferrer');
-  }
-
-  const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+  const display = sessionUrl.replace(/^https?:\/\//, '');
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
-      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="share-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+    <div className="fade-in fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-surface-dim/60 backdrop-blur-sm">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="share-modal-title"
+        className="slide-up w-full max-w-lg bg-surface-container-low border-t sm:border border-white/10 rounded-t-[32px] sm:rounded-[32px] glow-shadow-emerald sm:mx-4 px-container-margin pb-xl pt-md flex flex-col items-center">
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🔗</div>
-          <div>
-            <h2 id="share-modal-title" className="font-bold text-white">Invite people</h2>
-            <p className="text-slate-400 text-sm">Anyone with this link can join</p>
-          </div>
+        <div className="w-12 h-1.5 bg-outline-variant rounded-full mb-lg opacity-40 sm:hidden" />
+
+        <div className="w-full text-left mb-xl">
+          <h1 id="share-modal-title" className="text-headline-lg-mobile text-on-surface mb-xs">Invite people</h1>
+          <p className="text-body-md text-on-surface-variant">Anyone with this link can join</p>
         </div>
 
         {/* Link row */}
-        <div className="bg-[#0f172a] rounded-xl p-3 mb-3 flex items-center gap-2">
-          <p className="flex-1 text-slate-300 text-sm font-mono truncate">{sessionUrl}</p>
+        <div className="w-full bg-surface-container-lowest rounded-xl p-md flex items-center justify-between border border-white/5 mb-lg gap-3">
+          <span className="text-label-md text-secondary tracking-wide truncate">{display}</span>
+          <span className="material-symbols-outlined text-on-surface-variant flex-shrink-0">link</span>
         </div>
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => copy(sessionUrl, 'link')}
-            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all ${copiedLink ? 'bg-emerald-600 text-white' : 'bg-[#334155] hover:bg-[#475569] text-white'}`}
-          >
-            {copiedLink ? '✓ Copied!' : '📋 Copy link'}
+
+        {/* Action buttons */}
+        <div className="grid grid-cols-2 gap-md w-full mb-md">
+          <button onClick={() => copy(sessionUrl, 'link')} className="flex items-center justify-center gap-sm h-14 rounded-full border-2 border-secondary/30 text-secondary text-label-md hover:bg-secondary/10 transition-all active:scale-95">
+            <span className="material-symbols-outlined text-[20px]">{copiedLink ? 'check_circle' : 'content_copy'}</span>
+            {copiedLink ? 'Copied!' : 'Copy link'}
           </button>
-          {hasNativeShare ? (
-            <button
-              onClick={shareViaSystem}
-              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors"
-            >
-              Share ↗
-            </button>
-          ) : (
-            <button
-              onClick={shareViaWhatsApp}
-              className="flex-1 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20c45a] text-white font-semibold text-sm transition-colors"
-            >
-              WhatsApp
-            </button>
-          )}
+          <button onClick={share} className="flex items-center justify-center gap-sm h-14 rounded-full bg-gradient-to-r from-secondary-container to-secondary-fixed-dim text-on-secondary-container text-label-md glow-shadow-emerald hover:opacity-90 transition-all active:scale-95">
+            <span className="material-symbols-outlined text-[20px]">share</span> Share
+          </button>
         </div>
 
         {copyFailed && (
-          <p role="alert" className="text-amber-400 text-xs mb-3 text-center">
-            Couldn't copy automatically — select the link above and copy it manually.
-          </p>
+          <p role="alert" className="w-full text-error text-label-md mb-md text-center">Couldn't copy — select the link above and copy it manually.</p>
         )}
 
-        {/* Password section */}
+        {/* Password collapsible */}
         {password && (
-          <div className="mb-4 border border-amber-500/20 bg-amber-500/5 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-amber-400 text-sm font-semibold">🔒 Session password</span>
-            </div>
-            <div className="flex items-center gap-2 bg-[#0f172a] rounded-xl px-3 py-2.5 mb-2">
-              <span className="flex-1 text-white font-mono text-sm tracking-wide">
-                {showPass ? password : '••••••••••••'}
-              </span>
-              {/* A11Y-07: aria-label for password visibility toggle */}
-              <button onClick={() => setShowPass(v => !v)} aria-label={showPass ? 'Hide password' : 'Show password'} className="text-slate-500 hover:text-slate-300 text-sm">
-                {showPass ? '🙈' : '👁'}
-              </button>
-            </div>
-            <button
-              onClick={() => copy(password, 'pass')}
-              className={`w-full py-2 rounded-xl font-semibold text-sm transition-all ${copiedPass ? 'bg-amber-600 text-white' : 'bg-[#334155] hover:bg-[#475569] text-white'}`}
-            >
-              {copiedPass ? '✓ Password copied!' : '📋 Copy password'}
+          <div className="w-full border-t border-white/10 pt-lg mb-lg">
+            <button onClick={() => setPassOpen(o => !o)} className="flex items-center justify-between w-full group">
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-on-surface-variant group-hover:text-secondary transition-colors">shield_lock</span>
+                <span className="text-label-md text-on-surface">Session password</span>
+              </div>
+              <span className={`material-symbols-outlined text-on-surface-variant transition-transform ${passOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </button>
-            <p className="text-amber-400/70 text-xs mt-2 text-center">
-              Share the password separately — not in the same message as the link.
-            </p>
+            {passOpen && (
+              <div className="pt-md">
+                <div className="bg-surface-container-highest rounded-xl p-md flex items-center gap-md border border-white/5">
+                  <span className="flex-1 text-label-md text-on-surface font-mono truncate">{showPass ? password : '••••••••••••'}</span>
+                  <button onClick={() => setShowPass(v => !v)} aria-label={showPass ? 'Hide password' : 'Show password'} className="text-on-surface-variant hover:text-secondary transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">{showPass ? 'visibility_off' : 'visibility'}</span>
+                  </button>
+                  <button onClick={() => copy(password, 'pass')} aria-label="Copy password" className="text-on-surface-variant hover:text-secondary transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">{copiedPass ? 'check_circle' : 'content_copy'}</span>
+                  </button>
+                </div>
+                <p className="mt-sm text-[12px] text-error flex items-center gap-xs">
+                  <span className="material-symbols-outlined text-[14px]">info</span>
+                  Share the password separately — not in the same message as the link.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        <button
-          onClick={onClose}
-          className="w-full py-3 rounded-xl bg-[#0f172a] text-slate-400 hover:text-white font-medium text-sm transition-colors"
-        >
-          Done
-        </button>
+        <button onClick={onClose} className="w-full h-16 rounded-2xl bg-surface-container-high text-on-surface text-headline-md hover:bg-surface-bright transition-all active:scale-95">Done</button>
       </div>
     </div>
   );

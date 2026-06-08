@@ -7,94 +7,95 @@ interface Props {
   onConsent: (name: string, approxMode: boolean) => void;
 }
 
+const BULLETS = [
+  { icon: 'verified_user',        text: 'Location shared only while this tab is open' },
+  { icon: 'link',                 text: 'Visible only to people with the link' },
+  { icon: 'history_toggle_off',   text: 'No data stored after the session ends' },
+  { icon: 'cancel_schedule_send', text: 'Revoke anytime by closing the tab' },
+];
+
 export default function ConsentModal({ isNewSession, onConsent }: Props) {
-  const [name, setName]           = useState(randomName);
+  const [name, setName]             = useState(randomName);
   const [approxMode, setApproxMode] = useState(false);
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
-      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="consent-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+    <div className="fade-in fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="consent-modal-title"
+        className="slide-up relative w-full max-w-lg bg-surface-container-low border-t sm:border border-white/10 rounded-t-[32px] sm:rounded-[32px] glow-shadow-emerald sm:mx-4">
 
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-4xl">
-            {isNewSession ? '🚀' : '📍'}
+        {/* mobile grabber */}
+        <div className="flex justify-center py-4 sm:hidden"><span className="w-10 h-1 rounded-full bg-outline-variant/50" /></div>
+
+        <div className="px-lg pb-xl pt-sm sm:pt-lg">
+          {/* Header */}
+          <div className="flex items-center gap-md mb-xl">
+            <div className="w-12 h-12 rounded-2xl bg-secondary-container/20 flex items-center justify-center text-secondary">
+              <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>{isNewSession ? 'rocket_launch' : 'location_on'}</span>
+            </div>
+            <div>
+              <h1 id="consent-modal-title" className="text-headline-lg-mobile text-on-surface">{isNewSession ? 'Start your meetup' : 'Join this meetup'}</h1>
+              <p className="text-label-md text-on-surface-variant uppercase tracking-widest">Privacy-first navigation</p>
+            </div>
           </div>
-          <h2 id="consent-modal-title" className="text-xl font-bold text-white">
-            {isNewSession ? 'Start your meetup' : 'Join this meetup'}
-          </h2>
-          <p className="text-slate-400 text-sm mt-1.5 leading-relaxed">
-            {isNewSession
-              ? 'Share the link that appears after joining.'
-              : 'Someone shared this link with you. Join to see each other on the map.'}
-          </p>
-        </div>
 
-        {/* Name input */}
-        <div className="mb-4">
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-            Your display name
-          </label>
-          <input
-            autoFocus
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && name.trim() && onConsent(name.trim(), approxMode)}
-            maxLength={32}
-            placeholder="How should others see you?"
-            className="w-full bg-[#0f172a] border border-slate-700 focus:border-emerald-500 outline-none rounded-xl px-4 py-3 text-white placeholder-slate-600 transition-colors"
-          />
-          <p className="text-xs text-slate-600 mt-1.5">Random name generated — change it if you like.</p>
-        </div>
+          <div className="space-y-lg">
+            {/* Display name */}
+            <div className="space-y-sm">
+              <label className="text-label-md text-secondary ml-1 block">Your display name</label>
+              <div className="relative group">
+                <input
+                  autoFocus
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && name.trim() && onConsent(name.trim(), approxMode)}
+                  maxLength={32}
+                  className="w-full bg-surface-container-lowest border-2 border-transparent focus:border-secondary rounded-2xl py-md px-lg text-body-lg text-on-surface outline-none transition-all placeholder:text-on-surface-variant/40"
+                  placeholder="How should others see you?"
+                />
+                <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60 group-focus-within:text-secondary transition-colors">edit</span>
+              </div>
+            </div>
 
-        {/* Approximate location toggle */}
-        <div className="flex items-center justify-between bg-[#0f172a] rounded-xl px-4 py-3 mb-5 border border-slate-700/50">
-          <div>
-            <p className="text-white text-sm font-medium">Approximate location</p>
-            <p className="text-slate-500 text-xs mt-0.5">±500 m privacy blur — less precise</p>
+            {/* Approximate location toggle */}
+            <div className="bg-surface-container-high/40 rounded-3xl p-lg flex items-center justify-between border border-white/5">
+              <div className="flex-1 pr-md">
+                <p className="text-headline-md text-on-surface">Approximate location</p>
+                <p className="text-body-md text-on-surface-variant mt-1">±500 m privacy blur</p>
+              </div>
+              <button
+                type="button" role="switch" aria-checked={approxMode} aria-label="Toggle approximate location"
+                onClick={() => setApproxMode(v => !v)}
+                className={`relative w-14 h-8 rounded-full transition-colors flex-shrink-0 ${approxMode ? 'bg-secondary' : 'bg-surface-container-highest'}`}
+              >
+                <span className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-on-surface transition-transform ${approxMode ? 'translate-x-6' : ''}`} />
+              </button>
+            </div>
+
+            {/* Privacy bullets */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-md py-sm">
+              {BULLETS.map(b => (
+                <div key={b.text} className="flex items-start gap-sm">
+                  <span className="material-symbols-outlined text-secondary text-[18px] mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>{b.icon}</span>
+                  <p className="text-body-md text-on-surface-variant">{b.text}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <div className="pt-md text-center">
+              <button
+                onClick={() => onConsent(name.trim() || randomName(), approxMode)}
+                className="w-full bg-gradient-to-r from-secondary-container to-secondary py-lg rounded-2xl text-headline-md text-on-secondary-container shadow-lg shadow-secondary/20 active:scale-95 transition-all duration-200 hover:brightness-110 flex items-center justify-center gap-sm"
+              >
+                <span>Share My Location &amp; Join</span>
+                <span className="material-symbols-outlined">arrow_forward</span>
+              </button>
+              <p className="text-label-md text-on-surface-variant mt-lg opacity-60">You'll see a standard browser location prompt next.</p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setApproxMode(v => !v)}
-            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ml-3 overflow-hidden ${
-              approxMode ? 'bg-emerald-500' : 'bg-slate-700'
-            }`}
-            aria-label="Toggle approximate location"
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                approxMode ? 'translate-x-[26px]' : 'translate-x-0'
-              }`}
-            />
-          </button>
         </div>
-
-        {/* Privacy bullets */}
-        <ul className="space-y-2 mb-6">
-          {[
-            'Location shared only while this tab is open',
-            'Visible only to people with this link',
-            'No data stored after the session ends',
-            'Revoke anytime by closing the tab',
-          ].map(item => (
-            <li key={item} className="flex items-start gap-2 text-sm text-slate-400">
-              <span className="text-emerald-400 mt-0.5 flex-shrink-0">✓</span>
-              {item}
-            </li>
-          ))}
-        </ul>
-
-        <button
-          onClick={() => onConsent(name.trim() || randomName(), approxMode)}
-          className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white font-bold text-base shadow-lg shadow-emerald-500/20 transition-all"
-        >
-          Share My Location & Join
-        </button>
-        <p className="text-center text-xs text-slate-600 mt-3">
-          Your browser will ask for location permission.
-        </p>
       </div>
     </div>
   );

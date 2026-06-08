@@ -562,133 +562,80 @@ export default function Session() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-[#0f172a]"
+      className="fixed inset-0 flex flex-col bg-background"
       style={{
         paddingTop:    'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-4 py-3 bg-[#0f172a]/90 backdrop-blur-md z-10 flex-shrink-0 border-b border-slate-800/60">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-            <circle cx="12" cy="9" r="2.5"/>
-          </svg>
-          <span className="font-bold text-white text-sm">Converge</span>
-        </button>
+      <header className="flex items-center justify-between gap-3 px-3 sm:px-container-margin py-md bg-background/80 backdrop-blur-xl z-20 flex-shrink-0 border-b border-white/10 shadow-[0_20px_50px_rgba(221,183,255,0.10)]">
+        <div className="flex items-center gap-2 sm:gap-md min-w-0">
+          <button onClick={() => navigate('/')} aria-label="Back" className="material-symbols-outlined text-primary hover:opacity-80 active:scale-95 transition flex-shrink-0">arrow_back</button>
+          <div className="flex flex-col min-w-0">
+            <span className="text-base sm:text-headline-lg-mobile font-extrabold text-primary tracking-tight leading-none">Converge</span>
+            {session && (sessionName || timeLeft) && (
+              <div className="flex items-center gap-sm mt-0.5">
+                {sessionName && <h1 className="text-label-md text-on-surface-variant truncate max-w-[110px]">{sessionName}</h1>}
+                {timeLeft && (
+                  <div className="bg-surface-container-highest/50 px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                    <span className={`material-symbols-outlined text-[12px] ${expiringSoon ? 'text-amber-400' : 'text-tertiary'}`}>timer</span>
+                    <span className={`text-[10px] font-bold ${expiringSoon ? 'text-amber-400' : 'text-tertiary'}`}>{timeLeft}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Session name + expiry */}
-          {session && (sessionName || timeLeft) && (
-            <div className="flex flex-col items-end">
-              {sessionName && (
-                <span className="text-white text-xs font-semibold truncate max-w-[110px] leading-tight">{sessionName}</span>
-              )}
-              {timeLeft && (
-                <span className={`text-[10px] font-mono leading-tight ${expiringSoon ? 'text-amber-400' : 'text-slate-500'}`}>
-                  ⏱ {timeLeft}
-                </span>
-              )}
+        <div className="flex items-center gap-1 sm:gap-sm flex-shrink-0">
+          {/* Live count */}
+          {session && (
+            <div className="hidden sm:flex items-center bg-secondary/10 px-3 py-1.5 rounded-full border border-secondary/20">
+              <span className={`w-1.5 h-1.5 rounded-full mr-2 ${isConnected ? 'bg-secondary status-pulse' : 'bg-error'}`} />
+              <span className="text-label-md text-secondary">{participants.length}<span className="hidden sm:inline"> Live</span></span>
             </div>
           )}
 
-          {/* Participant count + connection indicator */}
+          {/* Chat */}
           {session && (
-            <div className="flex items-center gap-1.5 bg-[#1e293b] rounded-full px-3 py-1">
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400 animate-pulse'}`} />
-              <span className="text-white text-xs font-semibold">{participants.length}</span>
-            </div>
-          )}
-
-          {/* Chat button */}
-          {session && (
-            <button
-              onClick={() => { setShowChat(true); setUnreadCount(0); }}
-              className="relative w-9 h-9 flex items-center justify-center bg-[#1e293b] hover:bg-[#334155] text-white rounded-xl transition-colors"
-              aria-label="Open chat"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
+            <button onClick={() => { setShowChat(true); setUnreadCount(0); }} aria-label="Open chat" className="relative p-1.5 sm:p-2 rounded-full hover:bg-white/5 transition-colors active:scale-95">
+              <span className="material-symbols-outlined text-on-surface">chat</span>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+                <span className="absolute top-0 right-0 w-4 h-4 bg-error text-on-error flex items-center justify-center text-[10px] font-bold rounded-full border border-background">{unreadCount > 9 ? '9+' : unreadCount}</span>
               )}
             </button>
           )}
 
           {/* Invite */}
           {session && (
-            <button
-              onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-              Invite
-            </button>
+            <button onClick={() => setShowShare(true)} className="px-3 sm:px-4 py-2 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container text-label-md rounded-full hover:opacity-90 active:scale-95 transition-all shadow-lg flex-shrink-0">Invite</button>
           )}
 
-          {/* Venue editor (host only) */}
+          {/* Venue editor (host) */}
           {session && amHost && (
-            <button
-              onClick={() => { setDraftVenuePoints(session.venuePoints); setShowVenueEditor(true); }}
-              className="w-9 h-9 flex items-center justify-center bg-[#1e293b] hover:bg-[#334155] text-white rounded-xl transition-colors text-base"
-              aria-label="Edit venue points"
-              title="Venue points"
-            >
-              📍
+            <button onClick={() => { setDraftVenuePoints(session.venuePoints); setShowVenueEditor(true); }} aria-label="Edit venue points" title="Venue points" className="p-1.5 sm:p-2 rounded-full hover:bg-white/5 text-on-surface-variant hover:text-secondary transition-colors active:scale-95">
+              <span className="material-symbols-outlined">edit</span>
             </button>
           )}
 
-          {/* Leave session (guests only) */}
+          {/* Leave (guest) */}
           {session && !amHost && (
             <button
-              onClick={() => {
-                // M-5: set the guard so the useEffect cleanup doesn't also disconnect.
-                disconnectedRef.current = true;
-                socket.emit('leave-session');
-                socket.disconnect();
-                navigate('/');
-              }}
-              className="text-xs font-bold px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-slate-700/50"
-            >
-              Leave
-            </button>
+              onClick={() => { disconnectedRef.current = true; socket.emit('leave-session'); socket.disconnect(); navigate('/'); }}
+              className="px-3 sm:px-4 py-2 border-2 border-outline-variant/30 text-outline text-label-md rounded-full hover:bg-white/5 transition-all"
+            >Leave</button>
           )}
 
-          {/* End session (host only) */}
+          {/* End (host) */}
           {session && amHost && (
             confirmEnd ? (
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => { socket.emit('end-session'); setConfirmEnd(false); }}
-                  className="text-xs font-bold px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                >
-                  End
-                </button>
-                <button
-                  onClick={() => setConfirmEnd(false)}
-                  className="text-xs font-bold px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => { socket.emit('end-session'); setConfirmEnd(false); }} className="text-label-md px-3 py-2 bg-error text-on-error rounded-full transition-colors">End</button>
+                <button onClick={() => setConfirmEnd(false)} className="text-label-md px-3 py-2 bg-surface-container-high text-on-surface rounded-full transition-colors">Cancel</button>
               </div>
             ) : (
-              <button
-                onClick={() => setConfirmEnd(true)}
-                className="text-xs font-bold px-3 py-2 bg-red-900/70 hover:bg-red-700 text-red-300 hover:text-white rounded-xl transition-colors border border-red-800/50"
-              >
-                End
-              </button>
+              <button onClick={() => setConfirmEnd(true)} className="px-3 sm:px-4 py-2 border-2 border-outline-variant/30 text-outline text-label-md rounded-full hover:bg-error/10 hover:text-error hover:border-error/30 transition-all">End</button>
             )
           )}
         </div>
@@ -706,8 +653,8 @@ export default function Session() {
       <div className="flex-1 relative min-h-0">
         {session ? (
           <Suspense fallback={
-            <div className="absolute inset-0 flex items-center justify-center bg-[#1e293b]">
-              <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center bg-surface">
+              <div className="w-12 h-12 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
             </div>
           }>
             <MeetMap
@@ -717,10 +664,10 @@ export default function Session() {
             />
           </Suspense>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1e293b]">
+          <div className="absolute inset-0 flex items-center justify-center bg-surface">
             <div className="text-center">
-              <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-slate-400 text-sm">Connecting…</p>
+              <div className="w-12 h-12 border-2 border-secondary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-on-surface-variant text-body-md">Connecting…</p>
             </div>
           </div>
         )}
@@ -743,12 +690,11 @@ export default function Session() {
 
         {/* Arrived toasts — fixed so pinch-zoom / layout shifts don't displace them */}
         {arrivals.length > 0 && (
-          <div role="status" aria-live="assertive" className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
-            {/* L-2: key on unique id, not message text, to avoid collisions */}
+          <div role="status" aria-live="assertive" className="fixed top-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[2000] pointer-events-none">
             {arrivals.map(a => (
-              <div key={a.id} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
-                <span className="text-lg">🎉</span>
-                <span>{a.msg}</span>
+              <div key={a.id} className="arrival-pop bg-surface-container/90 backdrop-blur-lg border border-secondary/40 px-5 py-3 rounded-full flex items-center gap-3 shadow-2xl">
+                <span className="bg-secondary/20 p-1 rounded-full flex"><span className="material-symbols-outlined text-secondary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span></span>
+                <span className="text-body-md text-on-surface whitespace-nowrap">{a.msg}</span>
               </div>
             ))}
           </div>
@@ -757,21 +703,21 @@ export default function Session() {
 
       {/* ── Participant list ── */}
       {session && (
-        <div className="flex-shrink-0 bg-[#0f172a]/95 backdrop-blur-sm border-t border-slate-800/60">
+        <div className="flex-shrink-0 bg-surface-container/90 backdrop-blur-xl border-t border-white/10">
           <ParticipantList participants={participants} myId={session.myId} hostId={session.hostId} />
         </div>
       )}
 
       {/* SEC-06: Fetch error state — shown instead of consent when server unreachable */}
       {fetchError && !showConsent && !showPasswordModal && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container border border-white/10 rounded-3xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">⚠️</div>
-            <h2 className="text-white text-xl font-bold mb-2">Connection Error</h2>
-            <p className="text-slate-400 text-sm mb-6">{fetchError}</p>
+            <h2 className="text-on-surface text-xl font-bold mb-2">Connection Error</h2>
+            <p className="text-on-surface-variant text-sm mb-6">{fetchError}</p>
             <button
               onClick={() => window.location.reload()}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all"
             >
               Retry
             </button>
@@ -783,20 +729,20 @@ export default function Session() {
           (session full, rate-limited, expired, or a generic failure) so the user isn't
           left staring at an endless "Connecting…" spinner. */}
       {joinError && !session && !sessionEnded && !sessionExpired && !reconnectFailed && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container border border-white/10 rounded-3xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">🚫</div>
-            <h2 className="text-white text-xl font-bold mb-2">Couldn't join</h2>
-            <p className="text-slate-400 text-sm mb-6">{joinError}</p>
+            <h2 className="text-on-surface text-xl font-bold mb-2">Couldn't join</h2>
+            <p className="text-on-surface-variant text-sm mb-6">{joinError}</p>
             <button
               onClick={() => window.location.reload()}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all"
             >
               Try again
             </button>
             <button
               onClick={() => navigate('/')}
-              className="w-full mt-2 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition-colors text-sm"
+              className="w-full mt-2 py-3 bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold rounded-2xl transition-colors text-sm"
             >
               Back to Home
             </button>
@@ -832,28 +778,32 @@ export default function Session() {
 
       {/* Venue editor modal (host only) */}
       {showVenueEditor && session && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm">
           {/* A11Y-05: dialog role and aria-labelledby for screen readers */}
-          <div ref={venueEditorRef} role="dialog" aria-modal="true" aria-labelledby="venue-editor-title" className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+          <div ref={venueEditorRef} role="dialog" aria-modal="true" aria-labelledby="venue-editor-title" className="slide-up bg-surface border-t sm:border border-white/10 rounded-t-[32px] sm:rounded-[32px] sm:mx-4 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex justify-center pt-3 pb-1"><span className="w-10 h-1 rounded-full bg-outline-variant/50" /></div>
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-800/60 flex-shrink-0">
-              <div>
-                <h2 id="venue-editor-title" className="text-white font-bold text-base">Venue Points</h2>
-                <p className="text-slate-500 text-xs mt-0.5">Pre-set meetup spots visible to everyone</p>
+            <div className="flex items-center justify-between px-lg pt-2 pb-3 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-secondary">edit</span>
+                <div>
+                  <h2 id="venue-editor-title" className="text-on-surface text-headline-md">Venue points</h2>
+                  <p className="text-on-surface-variant text-xs mt-0.5">Pre-set meetup spots visible to everyone</p>
+                </div>
               </div>
               <button
                 onClick={() => setShowVenueEditor(false)}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-white bg-slate-800 rounded-lg transition-colors"
+                className="w-9 h-9 flex items-center justify-center text-on-surface-variant hover:text-on-surface bg-surface-container-high rounded-full transition-colors"
               >
-                ✕
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             {/* Body */}
-            <div className="overflow-y-auto flex-1 px-5 py-4">
+            <div className="overflow-y-auto flex-1 px-lg py-2">
               <Suspense fallback={
                 <div className="h-[180px] flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
                 </div>
               }>
                 <VenuePicker venuePoints={draftVenuePoints} onChange={setDraftVenuePoints} />
@@ -861,10 +811,10 @@ export default function Session() {
             </div>
 
             {/* Footer */}
-            <div className="flex gap-3 px-5 py-4 border-t border-slate-800/60 flex-shrink-0">
+            <div className="flex gap-3 px-5 py-4 border-t border-white/10 flex-shrink-0">
               <button
                 onClick={() => setShowVenueEditor(false)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold text-sm transition-colors"
+                className="flex-1 py-3 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-2xl font-semibold text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -873,7 +823,7 @@ export default function Session() {
                   socket.emit('update-venue-points', { points: draftVenuePoints });
                   setShowVenueEditor(false);
                 }}
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-semibold text-sm transition-colors"
+                className="flex-1 py-3 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container rounded-2xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all"
               >
                 Save
               </button>
@@ -884,25 +834,25 @@ export default function Session() {
 
       {/* Session ended overlay */}
       {sessionEnded && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container border border-white/10 rounded-3xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">🏁</div>
-            <h2 className="text-white text-xl font-bold mb-2">Session Ended</h2>
-            <p className="text-slate-400 text-sm">The host has ended this session. Redirecting you home…</p>
+            <h2 className="text-on-surface text-xl font-bold mb-2">Session Ended</h2>
+            <p className="text-on-surface-variant text-sm">The host has ended this session. Redirecting you home…</p>
           </div>
         </div>
       )}
 
       {/* Session expired overlay */}
       {sessionExpired && !sessionEnded && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container border border-white/10 rounded-3xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">⏱</div>
-            <h2 className="text-white text-xl font-bold mb-2">Session Expired</h2>
-            <p className="text-slate-400 text-sm mb-6">This session has reached its time limit.</p>
+            <h2 className="text-on-surface text-xl font-bold mb-2">Session Expired</h2>
+            <p className="text-on-surface-variant text-sm mb-6">This session has reached its time limit.</p>
             <button
               onClick={() => navigate('/')}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all"
             >
               Back to Home
             </button>
@@ -913,23 +863,23 @@ export default function Session() {
       {/* M-10: Reconnect-failed overlay — shown when socket.io exhausts all
            reconnection attempts (reconnectionAttempts=5 in socket.ts).           */}
       {reconnectFailed && !sessionEnded && !sessionExpired && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+        <div className="fade-in fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container border border-white/10 rounded-3xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
             <div className="text-4xl mb-4">📡</div>
-            <h2 className="text-white text-xl font-bold mb-2">Connection Lost</h2>
-            <p className="text-slate-400 text-sm mb-6">
+            <h2 className="text-on-surface text-xl font-bold mb-2">Connection Lost</h2>
+            <p className="text-on-surface-variant text-sm mb-6">
               Unable to reconnect to the server after several attempts.
               Check your internet connection and try again.
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-secondary-container to-secondary text-on-secondary-container font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all"
             >
               Retry
             </button>
             <button
               onClick={() => navigate('/')}
-              className="w-full mt-2 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition-colors text-sm"
+              className="w-full mt-2 py-3 bg-surface-container-high hover:bg-surface-bright text-on-surface font-semibold rounded-2xl transition-colors text-sm"
             >
               Back to Home
             </button>

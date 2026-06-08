@@ -10,22 +10,15 @@ interface Props {
 
 export default function ParticipantList({ participants, myId, hostId }: Props) {
   const me = participants.find(p => p.id === myId);
-
   return (
-    <div className="relative">
-      <div className="flex gap-3 overflow-x-auto px-4 py-3 scrollbar-thin">
-        {participants.map(p => (
-          <Card key={p.id} participant={p} isMe={p.id === myId} isHost={p.id === hostId} me={me} />
-        ))}
-        {participants.length === 1 && (
-          <div className="flex-shrink-0 flex items-center justify-center bg-[#1e293b]/60 border border-dashed border-slate-700 rounded-2xl px-5 py-3 min-w-[140px]">
-            <p className="text-slate-500 text-xs text-center">Waiting for<br/>others to join…</p>
-          </div>
-        )}
-      </div>
-      {/* Right-fade scroll hint */}
-      {participants.length > 2 && (
-        <div className="absolute right-0 top-0 bottom-0 w-10 pointer-events-none bg-gradient-to-l from-[#0f172a] to-transparent" />
+    <div className="flex gap-3 overflow-x-auto px-3 sm:px-container-margin py-md no-scrollbar">
+      {participants.map(p => (
+        <Card key={p.id} participant={p} isMe={p.id === myId} isHost={p.id === hostId} me={me} />
+      ))}
+      {participants.length === 1 && (
+        <div className="flex-none w-44 flex items-center justify-center bg-surface-container/60 border border-dashed border-white/10 rounded-3xl px-4 py-3">
+          <p className="text-on-surface-variant text-label-md text-center">Waiting for others to join…</p>
+        </div>
       )}
     </div>
   );
@@ -40,63 +33,43 @@ function Card({ participant: p, isMe, isHost, me }: { participant: Participant; 
 
   const hasLocation = p.lat !== null;
   const isOffline = !isMe && p.online === false;
+  const arrived = dist !== null && dist < 0.03;
 
   return (
-    <div className={`flex-shrink-0 bg-[#1e293b] rounded-2xl px-4 py-3 min-w-[148px] border transition-opacity ${
-      isOffline ? 'border-slate-700/20 opacity-60' : 'border-slate-700/40'
-    }`}>
-      {/* Name row */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="relative flex-shrink-0">
-          <span
-            className="block w-3 h-3 rounded-full ring-2 ring-white/20"
-            style={{ background: p.color }}
-          />
-          {/* Online/offline pulse */}
-          <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#1e293b] ${
-            isOffline ? 'bg-slate-600' : 'bg-emerald-400'
-          }`} />
+    <div className={`flex-none w-[14rem] sm:w-64 bg-surface-container/90 backdrop-blur-xl border rounded-3xl p-3.5 flex gap-3 shadow-2xl transition-transform duration-300 sm:hover:scale-[1.02] ${arrived ? 'border-secondary/30' : 'border-white/10'} ${isOffline ? 'opacity-60' : ''}`}>
+      {/* Avatar */}
+      <div className="relative flex-none">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-on-secondary text-lg sm:text-xl font-extrabold" style={{ background: p.color }}>
+          {p.name.charAt(0).toUpperCase()}
         </div>
-        <span className="text-white text-sm font-semibold truncate max-w-[80px]">{p.name}</span>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {isHost
-            ? <span className="text-[10px] text-amber-400 bg-amber-500/10 rounded-full px-1.5 py-0.5">host</span>
-            : <span className="text-[10px] text-slate-400 bg-slate-700/60 rounded-full px-1.5 py-0.5">guest</span>
-          }
-          {isMe && (
-            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 rounded-full px-1.5 py-0.5">you</span>
-          )}
-        </div>
+        <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-surface-container ${isOffline ? 'bg-outline' : 'bg-secondary status-pulse'}`} />
       </div>
 
-      {/* Status */}
-      {isOffline ? (
-        <p className="text-xs text-slate-600 flex items-center gap-1">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-600" />
-          Offline
-        </p>
-      ) : hasLocation ? (
-        <div className="space-y-0.5">
-          {isMe ? (
-            <p className="text-xs text-emerald-400 font-medium">📍 Sharing</p>
-          ) : dist !== null ? (
-            <>
-              <p className="text-xs text-slate-300 font-medium">{formatDistance(dist)}</p>
-              {/* L-3: use the participant's live speed (m/s → km/h) when moving, else walking pace. */}
-              <p className="text-xs text-emerald-400 font-semibold">
-                {formatETA(dist, p.speed && p.speed > 0 ? p.speed * 3.6 : undefined)}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-slate-500">Calculating…</p>
-          )}
+      {/* Info */}
+      <div className="flex flex-col justify-center min-w-0">
+        <div className="flex items-center gap-xs">
+          <h3 className="text-headline-md text-on-surface truncate">{isMe ? `${p.name} (You)` : p.name}</h3>
+          {isHost
+            ? <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider flex-shrink-0">Host</span>
+            : <span className="px-1.5 py-0.5 bg-white/5 text-on-surface-variant text-[10px] font-bold rounded uppercase tracking-wider flex-shrink-0">Guest</span>}
         </div>
-      ) : (
-        <p className="text-xs text-slate-500 flex items-center gap-1">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-          Locating…
-        </p>
-      )}
+
+        {isOffline ? (
+          <p className="text-label-md text-on-surface-variant">Offline</p>
+        ) : isMe ? (
+          <p className="text-label-md text-secondary font-bold">📍 Sharing</p>
+        ) : !hasLocation ? (
+          <p className="text-label-md text-on-surface-variant">Locating…</p>
+        ) : arrived ? (
+          <p className="text-label-md text-secondary font-bold">Arrived!</p>
+        ) : dist !== null ? (
+          <p className="text-label-md text-on-surface-variant">
+            {formatDistance(dist).replace(' away', '')} · {formatETA(dist, p.speed && p.speed > 0 ? p.speed * 3.6 : undefined)}
+          </p>
+        ) : (
+          <p className="text-label-md text-on-surface-variant">Calculating…</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -14,19 +14,13 @@ function formatTime(ts: number): string {
 }
 
 export default function ChatPanel({ messages, myId, onClose }: Props) {
-  const [text, setText]     = useState('');
-  const bottomRef           = useRef<HTMLDivElement>(null);
-  const inputRef            = useRef<HTMLInputElement>(null);
-  const trapRef             = useFocusTrap<HTMLDivElement>(true);
+  const [text, setText] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const trapRef   = useFocusTrap<HTMLDivElement>(true);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // A11Y-03: Move focus to input when panel opens.
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { inputRef.current?.focus(); }, []);
-
-  // A11Y-04: Close on Escape key globally.
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -41,62 +35,53 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[1500] flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      {/* A11Y-04: Backdrop with keyboard handler so Escape/Enter closes the panel */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => (e.key === 'Escape' || e.key === 'Enter') && onClose()}
-        aria-label="Close chat"
-      />
+    <div className="fade-in fixed inset-0 z-[1500] flex flex-col justify-end bg-black/60 backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={onClose} role="button" tabIndex={0} onKeyDown={e => (e.key === 'Escape' || e.key === 'Enter') && onClose()} aria-label="Close chat" />
 
-      {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
-      {/* Panel — slides up from bottom, covers ~70% of screen */}
-      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="chat-panel-title" className="relative mt-auto bg-[#1e293b] rounded-t-3xl flex flex-col shadow-2xl" style={{ maxHeight: '72vh' }}>
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="chat-panel-title"
+        className="relative slide-up bg-surface-container-lowest w-full h-[75%] rounded-t-3xl border-t border-white/10 shadow-[0_-20px_60px_rgba(132,43,210,0.15)] flex flex-col overflow-hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+
+        <div className="w-full flex justify-center py-3"><span className="w-12 h-1.5 bg-outline-variant rounded-full opacity-30" /></div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">💬</span>
-            <span id="chat-panel-title" className="font-bold text-white">Chat</span>
+        <header className="px-lg pb-lg flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 id="chat-panel-title" className="text-headline-lg-mobile text-primary tracking-tight">Chat</h2>
             {messages.length > 0 && (
-              <span className="text-xs text-slate-500">{messages.length} message{messages.length !== 1 ? 's' : ''}</span>
+              <span className="px-3 py-1 bg-primary-container/20 text-primary border border-primary/20 rounded-full text-label-md">{messages.length}</span>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 transition-colors">
-            ✕
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-variant transition-colors active:scale-90">
+            <span className="material-symbols-outlined text-on-surface-variant">close</span>
           </button>
-        </div>
+        </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+        <div className="flex-1 overflow-y-auto px-lg pb-lg space-y-lg min-h-0">
           {messages.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-4xl mb-3">💬</p>
-              <p className="text-slate-400 text-sm">No messages yet.</p>
-              <p className="text-slate-500 text-xs mt-1">Say hi to the group!</p>
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-[48px]">chat</span>
+              <p className="text-on-surface-variant text-body-md mt-2">No messages yet.</p>
+              <p className="text-on-surface-variant/60 text-label-md mt-1">Say hi to the group!</p>
             </div>
           ) : (
             messages.map(msg => {
               const isMe = msg.participantId === myId;
-              return (
-                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                  {!isMe && (
-                    <div className="flex items-center gap-1.5 mb-1 ml-1">
-                      <span className="w-2 h-2 rounded-full" style={{ background: msg.color }} />
-                      <span className="text-xs font-semibold text-slate-400">{msg.participantName}</span>
-                    </div>
-                  )}
-                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 ${
-                    isMe
-                      ? 'bg-emerald-500 text-white rounded-br-sm'
-                      : 'bg-[#0f172a] text-slate-100 rounded-bl-sm'
-                  }`}>
-                    <p className="text-sm leading-relaxed break-words">{msg.text}</p>
+              return isMe ? (
+                <div key={msg.id} className="flex flex-col items-end max-w-[85%] ml-auto">
+                  <div className="bg-gradient-to-br from-secondary to-secondary-container px-md py-3 rounded-2xl rounded-tr-none text-on-secondary-container shadow-[0_4px_15px_rgba(78,222,163,0.3)]">
+                    <p className="text-body-md font-semibold break-words">{msg.text}</p>
                   </div>
-                  <span className="text-[10px] text-slate-600 mt-1 mx-1">{formatTime(msg.timestamp)}</span>
+                  <span className="text-[10px] text-outline-variant mt-1 mr-2 uppercase tracking-widest">{formatTime(msg.timestamp)}</span>
+                </div>
+              ) : (
+                <div key={msg.id} className="flex flex-col items-start max-w-[85%]">
+                  <span className="text-label-md mb-1 ml-2" style={{ color: msg.color }}>{msg.participantName}</span>
+                  <div className="bg-surface-container-high px-md py-3 rounded-2xl rounded-tl-none border border-white/5 text-on-surface shadow-md">
+                    <p className="text-body-md break-words">{msg.text}</p>
+                  </div>
+                  <span className="text-[10px] text-outline-variant mt-1 ml-2 uppercase tracking-widest">{formatTime(msg.timestamp)}</span>
                 </div>
               );
             })
@@ -105,27 +90,26 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
         </div>
 
         {/* Input */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-slate-700/50 flex-shrink-0">
-          <input
-            ref={inputRef}
-            type="text"
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            maxLength={200}
-            placeholder="Message…"
-            className="flex-1 bg-[#0f172a] border border-slate-700 focus:border-emerald-500 outline-none rounded-xl px-4 py-2.5 text-white placeholder-slate-600 text-sm transition-colors"
-          />
-          <button
-            onClick={send}
-            disabled={!text.trim()}
-            className="w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold transition-all active:scale-95"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-          </button>
+        <div className="p-lg bg-surface-container-lowest/90 backdrop-blur-xl border-t border-white/5">
+          <div className="flex items-center gap-3">
+            <input
+              ref={inputRef}
+              type="text"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              maxLength={200}
+              placeholder="Type a message…"
+              className="flex-1 bg-surface-container px-md py-4 rounded-2xl border border-transparent focus:border-secondary text-on-surface placeholder:text-outline transition-all duration-300 outline-none text-body-md"
+            />
+            <button
+              onClick={send}
+              disabled={!text.trim()}
+              className="w-14 h-14 bg-gradient-to-br from-secondary to-secondary-container text-on-secondary-container rounded-full flex items-center justify-center shadow-[0_8px_25px_rgba(0,165,114,0.3)] hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              <span className="material-symbols-outlined">send</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -573,7 +573,7 @@ export default function Session() {
         <div className="flex items-center gap-2 sm:gap-md min-w-0">
           <button onClick={() => navigate('/')} aria-label="Back" className="material-symbols-outlined text-primary hover:opacity-80 active:scale-95 transition flex-shrink-0">arrow_back</button>
           <div className="flex flex-col min-w-0">
-            <span className="text-base sm:text-headline-lg-mobile font-extrabold text-primary tracking-tight leading-none">Converge</span>
+            <span className="text-base sm:text-headline-lg-mobile font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary tracking-tight leading-tight">Converge</span>
             {session && (sessionName || timeLeft) && (
               <div className="flex items-center gap-sm mt-0.5">
                 {sessionName && <h1 className="text-label-md text-on-surface-variant truncate max-w-[110px]">{sessionName}</h1>}

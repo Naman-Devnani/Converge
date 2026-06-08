@@ -280,10 +280,10 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full bg-surface-container-lowest border-t border-white/5 flex flex-col items-center gap-lg px-container-margin py-xxl">
-        <span className="text-headline-md font-bold text-on-surface opacity-80">Converge</span>
-        <p className="text-body-md text-on-surface-variant/60">Privacy-first · open-source · ephemeral by design</p>
-        <p className="text-body-md text-on-surface-variant/60">© {new Date().getFullYear()} Converge</p>
+      <footer className="w-full bg-surface-container-lowest border-t border-white/5 flex flex-col items-center gap-1.5 px-container-margin py-xl text-center">
+        <span className="text-headline-md font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary leading-tight">Converge</span>
+        <p className="text-xs text-on-surface-variant/60">Privacy-first · open-source · ephemeral by design</p>
+        <p className="text-[11px] text-on-surface-variant/40 mt-1">© {new Date().getFullYear()} Converge</p>
       </footer>
     </div>
   );

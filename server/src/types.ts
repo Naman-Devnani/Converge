@@ -6,7 +6,8 @@ export interface VenuePoint {
 }
 
 export interface Participant {
-  id: string;
+  id: string;          // current socket.id (changes on reconnect)
+  clientId: string;    // stable per-session client identity — used to de-dup reconnects
   name: string;
   lat: number | null;
   lng: number | null;
@@ -33,6 +34,7 @@ export interface Session {
   id: string;
   name: string;
   hostSocketId: string;
+  hostToken: string | null;   // stable secret so a host can reclaim host across reconnect/refresh
   createdAt: number;
   expiresAt: number;
   participants: Record<string, Participant>;

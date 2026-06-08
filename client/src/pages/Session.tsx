@@ -1,27 +1,36 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { socket } from '../socket';
 import type { Participant, SessionState, ChatMessage, VenuePoint } from '../types';
 import { haversineKm, makeApproximator } from '../utils/geo';
 import { addToHistory } from '../utils/history';
-import MeetMap from '../components/MeetMap';
+import { useFocusTrap } from '../utils/useFocusTrap';
 import ConsentModal from '../components/ConsentModal';
 import ParticipantList from '../components/ParticipantList';
 import ShareModal from '../components/ShareModal';
 import PasswordModal from '../components/PasswordModal';
 import ChatPanel from '../components/ChatPanel';
-import VenuePicker from '../components/VenuePicker';
+
+// Lazy-loaded: both pull in Leaflet, kept out of the route's entry chunk.
+const MeetMap     = lazy(() => import('../components/MeetMap'));
+const VenuePicker = lazy(() => import('../components/VenuePicker'));
 
 const ARRIVED_THRESHOLD_KM = 0.08;
 
 interface HostState {
   isHost?: boolean;
+  hostToken?: string;
   sessionName?: string;
   password?: string;
   expiryHours?: number;
   maxParticipants?: number;
   venuePoints?: VenuePoint[];
 }
+
+const HOST_TOKEN_KEY = (id: string) => `converge_host_${id}`;
+
+// SEC-07: Full regex check for session ID format (module scope — stable identity).
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
 
 export default function Session() {
   const { id: sessionId } = useParams<{ id: string }>();
@@ -46,6 +55,7 @@ export default function Session() {
   // QUAL-04: Derive expiresAt and sessionName from session state instead of duplicating.
   const [timeLeft,           setTimeLeft]           = useState('');
   const [fetchError,         setFetchError]         = useState<string | null>(null); // SEC-06
+  const [joinError,          setJoinError]          = useState<string | null>(null); // surface non-password join errors
   const [amHost,             setAmHost]             = useState(false);
   const [confirmEnd,         setConfirmEnd]         = useState(false);
   const [sessionEnded,       setSessionEnded]       = useState(false);
@@ -69,14 +79,45 @@ export default function Session() {
   const hostStateRef       = useRef(hostState);
   useEffect(() => { hostStateRef.current = hostState; }, [hostState]);
 
+  // Returning host after a full page refresh: location.state is gone, but the host
+  // token was persisted to localStorage so we can still reclaim host. Read once.
+  const storedHostToken = useMemo(
+    () => (sessionId ? localStorage.getItem(HOST_TOKEN_KEY(sessionId)) : null),
+    [sessionId],
+  );
+  const hostToken = hostState?.hostToken ?? storedHostToken ?? undefined;
+  const hostTokenRef = useRef(hostToken);
+  useEffect(() => { hostTokenRef.current = hostToken; }, [hostToken]);
+
+  // Stable per-session client identity (sessionStorage → survives reload/reconnect in this
+  // tab, fresh in a new tab) so the server can re-attach a reconnect to our existing slot
+  // instead of spawning a duplicate participant.
+  const clientIdRef = useRef<string>('');
+  if (!clientIdRef.current && sessionId) {
+    const key = `converge_cid_${sessionId}`;
+    let cid = sessionStorage.getItem(key);
+    if (!cid) { cid = crypto.randomUUID(); try { sessionStorage.setItem(key, cid); } catch { /* ignore */ } }
+    clientIdRef.current = cid;
+  }
+
   // QUAL-04: Derive expiresAt and sessionName from session to avoid duplicate state.
   const expiresAt   = session?.expiresAt  ?? null;
   const sessionName = session?.sessionName ?? '';
 
   useEffect(() => { showChatRef.current = showChat; }, [showChat]);
 
+  // Focus trap for the inline venue-editor dialog (host only).
+  const venueEditorRef = useFocusTrap<HTMLDivElement>(showVenueEditor, () => setShowVenueEditor(false));
+
+  // Host's share password survives a refresh: read from the persisted host config so the
+  // host can still copy/re-share it after reloading (location.state is gone by then).
+  const sharePassword = hostState?.password ?? (() => {
+    if (!sessionId) return undefined;
+    try { return JSON.parse(sessionStorage.getItem(`converge_hostcfg_${sessionId}`) || 'null')?.password || undefined; }
+    catch { return undefined; }
+  })();
+
   // SEC-07: Full regex check for session ID format.
-  const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
   useEffect(() => {
     if (!sessionId || !SESSION_ID_RE.test(sessionId)) navigate('/');
   }, [sessionId, navigate]);
@@ -87,6 +128,13 @@ export default function Session() {
 
     if (hostState?.isHost) {
       setIsNewSession(true);
+      setShowConsent(true);
+      return;
+    }
+
+    // Returning host (refresh): we hold the host token, so skip the password prompt
+    // and join straight away — the server validates the token and re-grants host.
+    if (storedHostToken) {
       setShowConsent(true);
       return;
     }
@@ -116,7 +164,7 @@ export default function Session() {
         setFetchError('Could not reach server — try refreshing.');
       })
       .finally(() => clearTimeout(timer));
-  }, [sessionId, hostState?.isHost]);
+  }, [sessionId, hostState?.isHost, storedHostToken]);
 
   // Expiry countdown
   useEffect(() => {
@@ -126,6 +174,7 @@ export default function Session() {
       if (left <= 0) {
         setTimeLeft('Expired');
         setSessionExpired(true);
+        if (sessionId) { try { localStorage.removeItem(HOST_TOKEN_KEY(sessionId)); } catch { /* ignore */ } }
         return;
       }
       const h = Math.floor(left / 3600000);
@@ -136,7 +185,7 @@ export default function Session() {
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [expiresAt]);
+  }, [expiresAt, sessionId]);
 
   // Socket event listeners
   useEffect(() => {
@@ -241,12 +290,17 @@ export default function Session() {
         setShowConsent(false);
         setShowPasswordModal(true);
       } else {
+        // Surface every other server error (session full, expired, rate-limited,
+        // generic join failure) instead of leaving the user on an endless spinner.
         console.error('Socket:', message);
+        setJoinError(message || 'Something went wrong. Please try again.');
       }
     };
 
     const onSessionEnded = () => {
       setSessionEnded(true);
+      // Session is gone — drop the stored host token so we don't recreate it on revisit.
+      try { localStorage.removeItem(HOST_TOKEN_KEY(sessionId)); } catch { /* ignore */ }
       sessionEndTimerRef.current = setTimeout(() => navigate('/'), 3000);
     };
 
@@ -291,11 +345,20 @@ export default function Session() {
     };
   }, [sessionId, navigate]);
 
+  // Auto-dismiss post-join action errors (e.g. host-only actions) after a few seconds.
+  useEffect(() => {
+    if (!joinError || !session) return;
+    const t = setTimeout(() => setJoinError(null), 4000);
+    return () => clearTimeout(t);
+  }, [joinError, session]);
+
   const arrivalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Clear arrival timers only on unmount
+  // Clear arrival timers only on unmount. We intentionally read the ref's *current* value
+  // at unmount (the live timer list), so the lint "ref may have changed" hint doesn't apply.
   useEffect(() => {
-    return () => { arrivalTimersRef.current.forEach(clearTimeout); };
+    const timers = arrivalTimersRef;
+    return () => { timers.current.forEach(clearTimeout); };
   }, []);
 
   // "Arrived" detection + haptic
@@ -352,6 +415,7 @@ export default function Session() {
     }
   // PERF-03: Depend only on participants/venuePoints/myId to avoid re-running on
   // unrelated state changes (chat messages, connection status, etc.).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.participants, session?.venuePoints, session?.myId]);
 
   const startLocationWatch = useCallback(() => {
@@ -370,12 +434,30 @@ export default function Session() {
           lat = a.lat;
           lng = a.lng;
         }
+        const accuracy = approxRef.current ? 500 : pos.coords.accuracy;
         socket.emit('location-update', {
           lat,
           lng,
-          accuracy: approxRef.current ? 500 : pos.coords.accuracy,
+          accuracy,
           heading:  pos.coords.heading,
           speed:    pos.coords.speed,
+        });
+        // Optimistically render our own marker immediately instead of waiting for the
+        // server to echo it back (which is throttled to ~2s). The echo will reconcile.
+        setSession(prev => {
+          const me = prev?.participants[prev.myId];
+          if (!prev || !me) return prev;
+          return {
+            ...prev,
+            participants: {
+              ...prev.participants,
+              [prev.myId]: {
+                ...me, lat, lng, accuracy,
+                heading: pos.coords.heading, speed: pos.coords.speed,
+                lastUpdate: Date.now(), lastSeen: Date.now(),
+              },
+            },
+          };
         });
         setGeoError(null);
       },
@@ -412,27 +494,47 @@ export default function Session() {
 
     // COR-06: Read hostState from ref so this callback doesn't recreate on every render.
     const hs = hostStateRef.current;
+    const token = hostTokenRef.current;
 
     // H-5: persist join params so the reconnect handler in the socket effect can
     // re-emit join-session if the socket drops and re-establishes.
-    const params = hs?.isHost
+    // A host (fresh create OR returning via stored token) sends the host config incl.
+    // the hostToken so the server re-grants host and skips the password on rejoin.
+    const params = token
       ? {
           sessionId,
           name,
+          clientId: clientIdRef.current,
           config: {
-            name:            hs.sessionName    || '',
-            password:        hs.password       || '',
-            expiryHours:     hs.expiryHours    ?? 2,
-            maxParticipants: hs.maxParticipants ?? 20,
-            venuePoints:     hs.venuePoints    ?? [],
+            name:            hs?.sessionName     || '',
+            password:        hs?.password        || '',
+            expiryHours:     hs?.expiryHours     ?? 2,
+            maxParticipants: hs?.maxParticipants ?? 20,
+            venuePoints:     hs?.venuePoints     ?? [],
+            hostToken:       token,
           },
         }
       : {
           sessionId,
           name,
+          clientId: clientIdRef.current,
           password: pendingPassword || undefined,
         };
     joinParamsRef.current = params;
+
+    // Persist the host token so a full page refresh can still reclaim host.
+    if (token && sessionId) {
+      try { localStorage.setItem(HOST_TOKEN_KEY(sessionId), token); } catch { /* storage full/blocked */ }
+    }
+    // Persist host config (name + password) so the Share modal still works after a refresh.
+    // sessionStorage (not localStorage) keeps it ephemeral — cleared when the tab closes.
+    if (hs?.isHost && sessionId) {
+      try {
+        sessionStorage.setItem(`converge_hostcfg_${sessionId}`, JSON.stringify({
+          sessionName: hs.sessionName ?? '', password: hs.password ?? '',
+        }));
+      } catch { /* ignore */ }
+    }
 
     const doJoin = () => socket.emit('join-session', params);
 
@@ -594,7 +696,7 @@ export default function Session() {
 
       {/* ── Disconnected banner ── */}
       {session && !isConnected && (
-        <div className="flex-shrink-0 bg-red-500/90 text-white text-xs font-medium text-center py-2 px-4 flex items-center justify-center gap-2 z-10">
+        <div role="status" aria-live="polite" className="flex-shrink-0 bg-red-500/90 text-white text-xs font-medium text-center py-2 px-4 flex items-center justify-center gap-2 z-10">
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
           Reconnecting… your location isn't updating.
         </div>
@@ -603,11 +705,17 @@ export default function Session() {
       {/* ── Map ── */}
       <div className="flex-1 relative min-h-0">
         {session ? (
-          <MeetMap
-            participants={participants}
-            myId={session.myId}
-            venuePoints={session.venuePoints}
-          />
+          <Suspense fallback={
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1e293b]">
+              <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <MeetMap
+              participants={participants}
+              myId={session.myId}
+              venuePoints={session.venuePoints}
+            />
+          </Suspense>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1e293b]">
             <div className="text-center">
@@ -619,14 +727,23 @@ export default function Session() {
 
         {/* Geo error toast */}
         {geoError && (
-          <div className="absolute bottom-4 left-4 right-4 bg-amber-500/90 backdrop-blur-sm text-white text-sm rounded-xl px-4 py-3 shadow-lg z-20">
+          <div role="status" aria-live="polite" className="absolute bottom-4 left-4 right-4 bg-amber-500/90 backdrop-blur-sm text-white text-sm rounded-xl px-4 py-3 shadow-lg z-20">
             ⚠️ {geoError}
+          </div>
+        )}
+
+        {/* Post-join action error toast (e.g. host-only actions) */}
+        {joinError && session && (
+          <div role="alert" className="absolute bottom-4 left-4 right-4 bg-red-500/90 backdrop-blur-sm text-white text-sm rounded-xl px-4 py-3 shadow-lg z-20 flex items-center gap-2">
+            <span>⚠️</span>
+            <span className="flex-1">{joinError}</span>
+            <button onClick={() => setJoinError(null)} aria-label="Dismiss" className="text-white/80 hover:text-white">✕</button>
           </div>
         )}
 
         {/* Arrived toasts — fixed so pinch-zoom / layout shifts don't displace them */}
         {arrivals.length > 0 && (
-          <div className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
+          <div role="status" aria-live="assertive" className="fixed top-[72px] left-4 right-4 flex flex-col gap-2 z-[2000] pointer-events-none">
             {/* L-2: key on unique id, not message text, to avoid collisions */}
             {arrivals.map(a => (
               <div key={a.id} className="slide-up bg-emerald-500 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
@@ -662,6 +779,31 @@ export default function Session() {
         </div>
       )}
 
+      {/* Join error overlay — shown when a join attempt fails before we ever connect
+          (session full, rate-limited, expired, or a generic failure) so the user isn't
+          left staring at an endless "Connecting…" spinner. */}
+      {joinError && !session && !sessionEnded && !sessionExpired && !reconnectFailed && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1e293b] rounded-2xl px-8 py-10 text-center shadow-2xl max-w-xs w-full mx-4">
+            <div className="text-4xl mb-4">🚫</div>
+            <h2 className="text-white text-xl font-bold mb-2">Couldn't join</h2>
+            <p className="text-slate-400 text-sm mb-6">{joinError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors"
+            >
+              Try again
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full mt-2 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl transition-colors text-sm"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Modals ── */}
       {showPasswordModal && (
         <PasswordModal
@@ -676,7 +818,7 @@ export default function Session() {
       {showShare && session && (
         <ShareModal
           sessionUrl={sessionUrl}
-          password={hostState?.password}
+          password={amHost ? sharePassword : undefined}
           onClose={() => setShowShare(false)}
         />
       )}
@@ -692,7 +834,7 @@ export default function Session() {
       {showVenueEditor && session && (
         <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/60 backdrop-blur-sm">
           {/* A11Y-05: dialog role and aria-labelledby for screen readers */}
-          <div role="dialog" aria-modal="true" aria-labelledby="venue-editor-title" className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+          <div ref={venueEditorRef} role="dialog" aria-modal="true" aria-labelledby="venue-editor-title" className="bg-[#0f172a] rounded-t-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-800/60 flex-shrink-0">
               <div>
@@ -709,7 +851,13 @@ export default function Session() {
 
             {/* Body */}
             <div className="overflow-y-auto flex-1 px-5 py-4">
-              <VenuePicker venuePoints={draftVenuePoints} onChange={setDraftVenuePoints} />
+              <Suspense fallback={
+                <div className="h-[180px] flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              }>
+                <VenuePicker venuePoints={draftVenuePoints} onChange={setDraftVenuePoints} />
+              </Suspense>
             </div>
 
             {/* Footer */}

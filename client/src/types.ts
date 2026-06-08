@@ -7,6 +7,7 @@ export interface VenuePoint {
 
 export interface Participant {
   id: string;
+  clientId?: string;
   name: string;
   lat: number | null;
   lng: number | null;

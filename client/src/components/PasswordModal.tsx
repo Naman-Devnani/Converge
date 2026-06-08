@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 interface Props {
   sessionName: string;
@@ -9,11 +10,12 @@ interface Props {
 export default function PasswordModal({ sessionName, error, onSubmit }: Props) {
   const [value, setValue]       = useState('');
   const [visible, setVisible]   = useState(false);
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
-      <div role="dialog" aria-modal="true" aria-labelledby="password-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="password-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
 
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-4xl">

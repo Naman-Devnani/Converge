@@ -33,7 +33,8 @@ export default function ParticipantList({ participants, myId, hostId }: Props) {
 
 function Card({ participant: p, isMe, isHost, me }: { participant: Participant; isMe: boolean; isHost: boolean; me?: Participant }) {
   const dist = useMemo(() => {
-    if (isMe || !me?.lat || !me?.lng || !p.lat || !p.lng) return null;
+    // L-9: strict null checks — `!p.lat` would wrongly drop lat/lng === 0 (equator / prime meridian).
+    if (isMe || me?.lat == null || me?.lng == null || p.lat == null || p.lng == null) return null;
     return haversineKm(me.lat, me.lng, p.lat, p.lng);
   }, [p.lat, p.lng, me?.lat, me?.lng, isMe]);
 
@@ -81,7 +82,10 @@ function Card({ participant: p, isMe, isHost, me }: { participant: Participant; 
           ) : dist !== null ? (
             <>
               <p className="text-xs text-slate-300 font-medium">{formatDistance(dist)}</p>
-              <p className="text-xs text-emerald-400 font-semibold">{formatETA(dist)}</p>
+              {/* L-3: use the participant's live speed (m/s → km/h) when moving, else walking pace. */}
+              <p className="text-xs text-emerald-400 font-semibold">
+                {formatETA(dist, p.speed && p.speed > 0 ? p.speed * 3.6 : undefined)}
+              </p>
             </>
           ) : (
             <p className="text-xs text-slate-500">Calculating…</p>

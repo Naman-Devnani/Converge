@@ -217,7 +217,14 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
     if (venuePoints.length === 0 && located.length >= 2) {
       // COR-09: Use non-null assertion — located is already filtered to p.lat !== null.
       const avgLat = located.reduce((s, p) => s + p.lat!, 0) / located.length;
-      const avgLng = located.reduce((s, p) => s + p.lng!, 0) / located.length;
+      // Average longitude via a unit-vector mean so the centroid is correct even when
+      // participants straddle the ±180° antimeridian (a plain arithmetic mean flips it).
+      let sx = 0, sy = 0;
+      for (const p of located) {
+        const r = (p.lng! * Math.PI) / 180;
+        sx += Math.cos(r); sy += Math.sin(r);
+      }
+      const avgLng = (Math.atan2(sy, sx) * 180) / Math.PI;
       const midPos: L.LatLngExpression = [avgLat, avgLng];
       if (!midpointRef.current) {
         midpointRef.current = L.marker(midPos, {
@@ -254,21 +261,40 @@ function Markers({ participants, myId, venuePoints }: MarkersProps) {
     }
   }, [participants, myId, venuePoints, map]);
 
-  // Cleanup all markers on unmount
+  // Cleanup all markers on unmount. Capture the ref objects (not their .current snapshots)
+  // so the cleanup reads the live marker collections at unmount time.
   useEffect(() => {
+    const markers = markersRef, circles = circlesRef, venues = venueMarkersRef, midpoint = midpointRef;
     return () => {
-      Object.values(markersRef.current).forEach(m => m.remove());
-      Object.values(circlesRef.current).forEach(c => c.remove());
-      Object.values(venueMarkersRef.current).forEach(m => m.remove());
-      midpointRef.current?.remove();
+      Object.values(markers.current).forEach(m => m.remove());
+      Object.values(circles.current).forEach(c => c.remove());
+      Object.values(venues.current).forEach(m => m.remove());
+      midpoint.current?.remove();
     };
   }, []);
 
   return null;
 }
 
-function ZoomControls() {
+function ZoomControls({ participants, myId }: { participants: Participant[]; myId: string }) {
   const map = useMap();
+
+  // Recenter on my location; if I'm not located yet, fit everyone who is.
+  const recenter = () => {
+    const me = participants.find(p => p.id === myId);
+    if (me && me.lat !== null && me.lng !== null) {
+      map.setView([me.lat, me.lng], Math.max(map.getZoom(), 15), { animate: true });
+      return;
+    }
+    const located = participants.filter(p => p.lat !== null && p.lng !== null);
+    if (located.length > 0) {
+      map.fitBounds(
+        L.latLngBounds(located.map(p => [p.lat!, p.lng!] as L.LatLngExpression)),
+        { padding: [64, 64], maxZoom: 17, animate: true },
+      );
+    }
+  };
+
   return (
     <div className="absolute right-4 top-4 flex flex-col gap-1 z-[1000]">
       {/* A11Y-01: Explicit aria-labels for screen reader users */}
@@ -285,6 +311,17 @@ function ZoomControls() {
         className="w-9 h-9 bg-[#1e293b]/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center text-lg font-bold hover:bg-[#334155] transition-colors"
       >
         −
+      </button>
+      <button
+        onClick={recenter}
+        aria-label="Recenter on my location"
+        title="Recenter on me"
+        className="w-9 h-9 mt-1 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl shadow-lg flex items-center justify-center hover:bg-emerald-400 transition-colors"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
       </button>
     </div>
   );
@@ -314,7 +351,7 @@ export default function MeetMap({ participants, myId, venuePoints }: Props) {
         maxZoom={19}
       />
       <Markers participants={participants} myId={myId} venuePoints={venuePoints} />
-      <ZoomControls />
+      <ZoomControls participants={participants} myId={myId} />
     </MapContainer>
     </div>
   );

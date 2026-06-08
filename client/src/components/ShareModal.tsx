@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 interface Props {
   sessionUrl: string;
@@ -10,9 +11,19 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
   const [copiedLink, setCopiedLink]     = useState(false);
   const [copiedPass, setCopiedPass]     = useState(false);
   const [showPass,   setShowPass]       = useState(false);
+  const [copyFailed, setCopyFailed]     = useState(false);
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
   async function copy(text: string, which: 'link' | 'pass') {
-    try { await navigator.clipboard.writeText(text); } catch { return; }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API can fail on non-HTTPS origins or when permission is denied —
+      // tell the user to copy manually instead of failing silently.
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 4000);
+      return;
+    }
     if (which === 'link') {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
@@ -45,7 +56,7 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
-      <div role="dialog" aria-modal="true" aria-labelledby="share-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="share-modal-title" className="slide-up bg-[#1e293b] rounded-3xl p-6 w-full max-w-sm shadow-2xl">
 
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🔗</div>
@@ -82,6 +93,12 @@ export default function ShareModal({ sessionUrl, password, onClose }: Props) {
             </button>
           )}
         </div>
+
+        {copyFailed && (
+          <p role="alert" className="text-amber-400 text-xs mb-3 text-center">
+            Couldn't copy automatically — select the link above and copy it manually.
+          </p>
+        )}
 
         {/* Password section */}
         {password && (

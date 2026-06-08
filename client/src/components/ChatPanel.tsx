@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ChatMessage } from '../types';
 import { socket } from '../socket';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 interface Props {
   messages: ChatMessage[];
@@ -16,6 +17,7 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
   const [text, setText]     = useState('');
   const bottomRef           = useRef<HTMLDivElement>(null);
   const inputRef            = useRef<HTMLInputElement>(null);
+  const trapRef             = useFocusTrap<HTMLDivElement>(true);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,7 +54,7 @@ export default function ChatPanel({ messages, myId, onClose }: Props) {
 
       {/* A11Y-05: dialog role with aria-modal and aria-labelledby */}
       {/* Panel — slides up from bottom, covers ~70% of screen */}
-      <div role="dialog" aria-modal="true" aria-labelledby="chat-panel-title" className="relative mt-auto bg-[#1e293b] rounded-t-3xl flex flex-col shadow-2xl" style={{ maxHeight: '72vh' }}>
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="chat-panel-title" className="relative mt-auto bg-[#1e293b] rounded-t-3xl flex flex-col shadow-2xl" style={{ maxHeight: '72vh' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50 flex-shrink-0">

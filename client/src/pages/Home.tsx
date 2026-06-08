@@ -145,6 +145,7 @@ export default function Home() {
             </button>
 
             <div className={`collapsible-content text-left ${showAdvanced ? 'open' : ''}`}>
+              <div className="overflow-hidden">
               <div className="glass-card rounded-xl p-lg mt-md space-y-lg shadow-xl">
                 <div>
                   <label className={labelCls}>Session Name</label>
@@ -192,6 +193,7 @@ export default function Home() {
                 {venueMode && (
                   <Suspense fallback={<MapFallback />}><VenuePicker venuePoints={venuePoints} onChange={setVenuePoints} /></Suspense>
                 )}
+              </div>
               </div>
             </div>
           </div>

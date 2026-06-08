@@ -112,9 +112,12 @@ body {
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .fade-in { animation: fade-in 0.3s ease-out; }
 
-/* Collapsible (Advanced settings) — Stitch max-height expand/collapse, 0.3s ease-out */
-.collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-.collapsible-content.open { max-height: 1500px; }
+/* Collapsible (Advanced settings) — grid 0fr→1fr animates the *actual* content height,
+   so expand AND collapse are smooth with no lag (the old max-height ceiling felt sticky
+   because it had to travel from 1500px down past the real ~450px before anything moved). */
+.collapsible-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.collapsible-content.open { grid-template-rows: 1fr; }
+.collapsible-content > * { min-height: 0; overflow: hidden; }
 
 /* Magical dissolve — the card fades & lifts while colorful glowing sparkles rise and twinkle out. */
 .magic-dissolving {

@@ -9,7 +9,7 @@
 **Privacy-first, open-source mutual live location sharing for real-world meetups.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io)](https://socket.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -122,7 +122,7 @@ No endless texting. No permanent tracking. No app install. Just — meet.
 Frontend                    Backend
 ────────────────────        ────────────────────
 React 18 + TypeScript       Node.js + Express
-Vite 5                      Socket.io 4
+Vite 8                      Socket.io 4
 Tailwind CSS 3              In-memory session store
 react-leaflet 4             TypeScript
 CartoDB dark map tiles
@@ -140,7 +140,7 @@ CartoDB dark map tiles
 
 ### Prerequisites
 
-- Node.js 20+ (deployment pins 20.11.0 via `render.yaml`)
+- Node.js **20.19+ or 22.12+** (required by Vite 8; pinned to **22.12.0** via `.nvmrc` / `.node-version` / `render.yaml`)
 - npm (bundled with Node.js)
 
 ### Local Development
@@ -167,6 +167,15 @@ npm run dev
 ### Test with multiple people locally
 
 Open **two or more browser tabs** at `http://localhost:5173` — each tab simulates a different user. All will appear on the map once location is granted.
+
+### Quality checks
+
+```bash
+npm run typecheck   # TypeScript — client + server
+npm run lint        # ESLint (client)
+npm test            # Server unit + socket-integration tests (node:test)
+npm run build       # Production build — client + server
+```
 
 ---
 
@@ -197,6 +206,7 @@ No secrets required. The only env vars used at deploy time:
 | Variable | Value | Notes |
 |---|---|---|
 | `NODE_ENV` | `production` | Set in `render.yaml` |
+| `NODE_VERSION` | `22.12.0` | Set in `render.yaml`. Vite 8 needs Node ≥20.19. ⚠️ A stale `NODE_VERSION` set directly in the Render dashboard **overrides** `render.yaml` — delete it (so `.node-version` applies) or set it to `22.12.0`, or the build fails. |
 | `PORT` | Set automatically by Render | Server binds to this port |
 | `ALLOWED_ORIGIN` | e.g. `https://your-app.onrender.com` | Optional. Comma-separated list of allowed CORS origins in production. Leave unset when the client and server are served from the same origin (the default Render setup — Express serves the built client). Required only if you deploy the frontend and backend on separate domains. |
 
@@ -287,7 +297,7 @@ Please open an issue first for major changes.
 | Contributor | Role |
 |---|---|
 | [Naman Devnani](https://github.com/Naman-Devnani) | Creator & maintainer |
-| [Claude](https://claude.ai) (Anthropic) | AI pair programmer — architecture, security hardening, bug fixes |
+| [Claude](https://claude.ai) (Anthropic) | AI pair programmer — architecture, security hardening, bug fixes, UI redesign |
 
 ---
 

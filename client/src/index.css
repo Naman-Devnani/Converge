@@ -94,6 +94,20 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 99px; }
 
+/* ── Ambient animated background — slow drifting blurred orbs ────────────────
+   Fills the empty side gutters on wide screens with gentle on-brand motion. */
+.bg-orbs { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.bg-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(110px);
+  opacity: 0.18;
+  will-change: transform;
+}
+@keyframes orb-a { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(9vw, 7vh) scale(1.15); } }
+@keyframes orb-b { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-8vw, -6vh) scale(1.12); } }
+@keyframes orb-c { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(6vw, -9vh) scale(0.92); } }
+
 /* Hide scrollbar (participant carousel) */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }

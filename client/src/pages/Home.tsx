@@ -107,7 +107,14 @@ export default function Home() {
   const labelCls = 'text-label-md uppercase tracking-wider text-on-surface-variant block mb-sm';
 
   return (
-    <div className="min-h-screen bg-background text-on-background">
+    <div className="relative min-h-screen bg-background text-on-background overflow-x-hidden">
+      {/* Ambient animated background — drifting blurred orbs fill the empty side gutters */}
+      <div className="bg-orbs" aria-hidden="true">
+        <div className="bg-orb" style={{ width: '42vw', height: '42vw', background: '#b76dff', top: '-10vh', left: '-8vw', animation: 'orb-a 24s ease-in-out infinite' }} />
+        <div className="bg-orb" style={{ width: '38vw', height: '38vw', background: '#4edea3', top: '18vh', right: '-10vw', animation: 'orb-b 28s ease-in-out infinite' }} />
+        <div className="bg-orb" style={{ width: '34vw', height: '34vw', background: '#4d8eff', bottom: '-12vh', left: '12vw', animation: 'orb-c 32s ease-in-out infinite' }} />
+      </div>
+
       {/* Top app bar */}
       <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-[0_20px_50px_rgba(183,109,255,0.15)] py-md px-container-margin">
         <div className="flex items-center gap-sm">
@@ -116,7 +123,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-container-margin pb-xxl space-y-xxl pt-xl">
+      <main className="relative z-10 max-w-md mx-auto px-container-margin pb-xxl space-y-xxl pt-xl">
         {/* Hero */}
         <section className="text-center space-y-md">
           <h1 className="text-display-lg-mobile tracking-tighter">
@@ -280,7 +287,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full bg-surface-container-lowest border-t border-white/5 flex flex-col items-center gap-2 px-container-margin py-xl text-center">
+      <footer className="relative z-10 w-full bg-surface-container-lowest border-t border-white/5 flex flex-col items-center gap-2 px-container-margin py-xl text-center">
         <span className="text-base font-bold tracking-[0.18em] uppercase text-on-surface/85">Converge</span>
         <p className="text-xs text-on-surface-variant/55">Privacy-first · open-source · ephemeral by design</p>
         <p className="text-[11px] text-on-surface-variant/35">© {new Date().getFullYear()} Converge · MIT</p>

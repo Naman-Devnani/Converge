@@ -14,6 +14,7 @@
     "build": "npm run build -w client && npm run build -w server",
     "start": "NODE_ENV=production node server/dist/index.js",
     "lint": "npm run lint -w client",
+    "typecheck": "tsc --noEmit -p client/tsconfig.json && tsc --noEmit -p server/tsconfig.json",
     "test": "npm run test -w server"
   },
   "devDependencies": {

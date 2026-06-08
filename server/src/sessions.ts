@@ -42,35 +42,7 @@ export function hashPassword(password: string): string {
   return `${salt}:${hash.toString('hex')}`;
 }
 
-// PERF-01: Async variant using callback-based scrypt so it doesn't block the event loop.
-// Uses the same SCRYPT_N as hashPassword so hashes are interchangeable with verifyPassword.
-export function hashPasswordAsync(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  return new Promise((resolve, reject) => {
-    scrypt(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }, (err, hash) => {
-      if (err) reject(err);
-      else resolve(`${salt}:${hash.toString('hex')}`);
-    });
-  });
-}
-
-// C-2: Constant-time verification — splits stored "salt:hash", re-derives and compares.
-export function verifyPassword(password: string, stored: string): boolean {
-  const colonIdx = stored.indexOf(':');
-  if (colonIdx === -1) return false;
-  const salt      = stored.slice(0, colonIdx);
-  const storedHex = stored.slice(colonIdx + 1);
-  try {
-    const derived  = scryptSync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
-    const storedBuf = Buffer.from(storedHex, 'hex');
-    if (derived.length !== storedBuf.length) return false;
-    return timingSafeEqual(derived, storedBuf);
-  } catch {
-    return false;
-  }
-}
-
-// PERF-01: Async variant for verifyPassword.
+// PERF-01: Async constant-time verification — splits stored "salt:hash", re-derives and compares.
 // IMPORTANT: Must use the same N as hashPassword (SCRYPT_N) — not ASYNC_N — so the
 // derived key matches the stored hash. Using a different N produces a different key.
 export function verifyPasswordAsync(password: string, stored: string): Promise<boolean> {
@@ -96,6 +68,7 @@ export interface SessionConfig {
   expiryHours?: number;
   maxParticipants?: number;
   venuePoints?: VenuePoint[];
+  hostToken?: string;   // stable host secret — lets the creator reclaim host on reconnect/refresh
 }
 
 export function getSession(id: string): Session | undefined {
@@ -117,6 +90,7 @@ export function getOrCreateSession(id: string, config?: SessionConfig): { sessio
     id,
     name: (config?.name ?? '').slice(0, 60),
     hostSocketId: '',
+    hostToken: config?.hostToken ?? null,
     createdAt: Date.now(),
     expiresAt: Date.now() + ttl,
     participants: {},
@@ -135,17 +109,31 @@ function nextColor(session: Session): string {
   return COLORS.find(c => !used.has(c)) ?? COLORS[Math.floor(Math.random() * COLORS.length)];
 }
 
-export function addParticipant(sessionId: string, socketId: string, name: string): Participant | null {
+// Find an existing participant by their stable clientId (used to detect a reconnect).
+export function findParticipantByClientId(sessionId: string, clientId: string): Participant | undefined {
+  const session = sessions.get(sessionId);
+  if (!session) return undefined;
+  return Object.values(session.participants).find(p => p.clientId === clientId);
+}
+
+export function addParticipant(
+  sessionId: string, socketId: string, name: string,
+  clientId?: string, preferredColor?: string,
+): Participant | null {
   const session = sessions.get(sessionId);
   if (!session) return null;
   if (Object.keys(session.participants).length >= session.maxParticipants) return null;
 
+  // Reuse the prior color on reconnect so a returning user keeps their marker colour.
+  const color = preferredColor && COLORS.includes(preferredColor) ? preferredColor : nextColor(session);
+
   const participant: Participant = {
     id: socketId,
+    clientId: clientId || socketId,
     name: name.slice(0, 32) || 'Anonymous',
     lat: null, lng: null, accuracy: null,
     heading: null, speed: null, lastUpdate: null,
-    color: nextColor(session),
+    color,
     joinedAt: Date.now(),
     online: true,
     lastSeen: Date.now(),
@@ -176,6 +164,14 @@ export function setHost(sessionId: string, socketId: string): void {
   if (session && !session.hostSocketId) session.hostSocketId = socketId;
 }
 
+// Re-point host to a new socket id when the original host reconnects (new socket.id)
+// and presents a hostToken matching the one stored at creation. Caller must verify the
+// token match before calling this.
+export function reclaimHost(sessionId: string, socketId: string): void {
+  const session = sessions.get(sessionId);
+  if (session) session.hostSocketId = socketId;
+}
+
 export function isHost(sessionId: string, socketId: string): boolean {
   return sessions.get(sessionId)?.hostSocketId === socketId;
 }
@@ -197,13 +193,6 @@ export function setParticipantOnline(sessionId: string, socketId: string, online
   session.participants[socketId].online   = online;
   session.participants[socketId].lastSeen = Date.now();
   return session.participants[socketId];
-}
-
-export function validatePassword(sessionId: string, password: string): boolean {
-  const session = sessions.get(sessionId);
-  if (!session) return false;
-  if (!session.passwordHash) return true;
-  return verifyPassword(password, session.passwordHash);
 }
 
 export function addMessage(

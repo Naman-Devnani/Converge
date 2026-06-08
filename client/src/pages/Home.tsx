@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generatePassword } from '../utils/password';
 import { getHistory, removeFromHistory } from '../utils/history';
-import VenuePicker from '../components/VenuePicker';
 import type { VenuePoint } from '../types';
+
+// Lazy-loaded: pulls in Leaflet (~heavy). Only needed when Venue mode is enabled, so it
+// stays out of the initial Home bundle.
+const VenuePicker = lazy(() => import('../components/VenuePicker'));
+const MapFallback = () => (
+  <div className="h-[180px] rounded-xl bg-[#0f172a] border border-slate-700 flex items-center justify-center">
+    <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 function genSessionId(): string {
   // QUAL-01: Entropy note — 12 hex chars from UUID = 48 bits, intentional for short readable IDs.
@@ -46,6 +54,8 @@ export default function Home() {
     navigate(`/session/${sessionId}`, {
       state: {
         isHost:          true,
+        // Stable host secret so the creator can reclaim host across reconnect/refresh.
+        hostToken:       crypto.randomUUID(),
         sessionName:     sessionName.trim(),
         password:        password.trim(),
         expiryHours,
@@ -203,7 +213,9 @@ export default function Home() {
                 </button>
               </div>
               {venueMode && (
-                <VenuePicker venuePoints={venuePoints} onChange={setVenuePoints} />
+                <Suspense fallback={<MapFallback />}>
+                  <VenuePicker venuePoints={venuePoints} onChange={setVenuePoints} />
+                </Suspense>
               )}
             </div>
           </div>
